@@ -1,0 +1,16 @@
+name = "resumatch-gateway"
+main = "worker.js"
+compatibility_date = "2026-06-02"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "replace_with_cloudflare_kv_namespace_id"
+
+[vars]
+AI_PROVIDER = "deepseek"
+AI_MODEL = "deepseek-chat"
+AI_API_BASE = "https://api.deepseek.com/chat/completions"
+ALLOWED_ORIGINS = "https://your-official-domain.com"
+
+# Configure secret separately:
+# wrangler secret put AI_API_KEY

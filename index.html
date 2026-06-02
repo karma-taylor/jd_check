@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ResuMatch / 简历全检官</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ink: "#172033",
+              muted: "#64748b",
+              line: "#dbe3ef",
+              brand: "#2563eb",
+              good: "#15803d",
+              warn: "#b45309",
+              bad: "#b91c1c"
+            }
+          }
+        }
+      };
+    </script>
+  </head>
+  <body class="min-h-screen bg-[#f6f8fb] text-ink">
+    <div id="app" class="min-h-screen">
+      <header class="border-b border-line bg-white">
+        <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+          <div>
+            <h1 class="text-xl font-semibold tracking-tight">ResuMatch / 简历全检官</h1>
+            <p class="mt-1 text-sm text-muted">简历与目标 JD 匹配度评估 · AI 硬伤排查 · 投递建议</p>
+          </div>
+          <div class="rounded-full border border-line px-3 py-1 text-xs text-muted">v1.0</div>
+        </div>
+      </header>
+
+      <main class="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <section class="space-y-4">
+          <div class="rounded-lg border border-line bg-white p-4">
+            <div class="mb-3 flex items-end justify-between gap-3">
+              <label for="resume" class="text-sm font-semibold">候选人简历文本</label>
+              <span :class="counterClass(resumeCount, limits.resume.min, limits.resume.max)" class="text-xs">
+                {{ resumeCount }} / {{ limits.resume.min }}-{{ limits.resume.max }} 字
+              </span>
+            </div>
+            <textarea
+              id="resume"
+              v-model="resumeText"
+              class="min-h-[300px] w-full resize-y rounded-md border border-line bg-white p-3 text-sm leading-6 outline-none transition focus:border-brand focus:ring-2 focus:ring-blue-100"
+              placeholder="粘贴候选人的最新简历文本。系统会自动保存到浏览器本地，下次打开自动回显。"
+            ></textarea>
+          </div>
+
+          <div class="rounded-lg border border-line bg-white p-4">
+            <div class="mb-3 flex items-end justify-between gap-3">
+              <label for="jd" class="text-sm font-semibold">目标岗位 JD 文本</label>
+              <span :class="counterClass(jdCount, limits.jd.min, limits.jd.max)" class="text-xs">
+                {{ jdCount }} / {{ limits.jd.min }}-{{ limits.jd.max }} 字
+              </span>
+            </div>
+            <textarea
+              id="jd"
+              v-model="jdText"
+              class="min-h-[220px] w-full resize-y rounded-md border border-line bg-white p-3 text-sm leading-6 outline-none transition focus:border-brand focus:ring-2 focus:ring-blue-100"
+              placeholder="粘贴目标岗位 JD，包括岗位职责、任职要求、技术栈、年限和加分项。"
+            ></textarea>
+          </div>
+        </section>
+
+        <aside class="space-y-4 lg:sticky lg:top-5 lg:self-start">
+          <div class="rounded-lg border border-line bg-white p-4">
+            <label for="endpoint" class="text-sm font-semibold">Worker 网关地址</label>
+            <input
+              id="endpoint"
+              v-model="apiEndpoint"
+              class="mt-3 w-full rounded-md border border-line px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-blue-100"
+              placeholder="https://your-worker.your-subdomain.workers.dev"
+            />
+            <button
+              :disabled="isLoading"
+              @click="startCheck"
+              class="mt-4 flex w-full items-center justify-center rounded-md bg-brand px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              <span v-if="isLoading" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+              {{ isLoading ? "检测中，请稍候" : "开始检测" }}
+            </button>
+            <p v-if="errorMessage" class="mt-3 rounded-md bg-red-50 p-3 text-sm text-bad">{{ errorMessage }}</p>
+          </div>
+
+          <section v-if="report" class="rounded-lg border border-line bg-white p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-xs font-semibold uppercase text-muted">Decision</p>
+                <h2 :class="decisionClass" class="mt-1 text-lg font-bold">{{ report.decision || "待判断" }}</h2>
+              </div>
+              <div class="text-right">
+                <p class="text-xs font-semibold uppercase text-muted">Match Score</p>
+                <p class="mt-1 text-3xl font-bold">{{ normalizedScore }}</p>
+              </div>
+            </div>
+            <div class="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
+              <div
+                class="h-full rounded-full transition-all duration-700"
+                :class="scoreBarClass"
+                :style="{ width: normalizedScore + '%' }"
+              ></div>
+            </div>
+          </section>
+
+          <section v-if="report" class="space-y-3">
+            <result-card title="硬伤 / 风险" tone="bad" :items="report.hard_flaws"></result-card>
+            <result-card title="匹配优势" tone="good" :items="report.strengths"></result-card>
+            <result-card title="短板与疑点" tone="warn" :items="report.weaknesses"></result-card>
+            <result-card title="修改建议" tone="brand" :items="report.rewrite_suggestions"></result-card>
+          </section>
+
+          <section v-if="fallbackMarkdown" class="rounded-lg border border-line bg-white p-4">
+            <h2 class="text-sm font-semibold">AI 原始报告</h2>
+            <div class="prose prose-sm mt-3 max-w-none whitespace-pre-wrap text-sm leading-6" v-html="fallbackHtml"></div>
+          </section>
+
+          <section v-if="!report && !fallbackMarkdown" class="rounded-lg border border-line bg-white p-4 text-sm leading-6 text-muted">
+            完成检测后，这里会显示匹配分、硬伤、优势、劣势和简历改写建议。前端会优先解析结构化 JSON；若 AI 返回异常文本，会自动降级展示原始 Markdown 报告。
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script>
+      const STORAGE_KEYS = {
+        resume: "resumatch.resumeText",
+        endpoint: "resumatch.apiEndpoint"
+      };
+
+      const ResultCard = {
+        props: ["title", "tone", "items"],
+        computed: {
+          safeItems() {
+            if (!this.items) return [];
+            return Array.isArray(this.items) ? this.items : [String(this.items)];
+          },
+          toneClass() {
+            return {
+              bad: "border-red-200 bg-red-50 text-bad",
+              warn: "border-amber-200 bg-amber-50 text-warn",
+              good: "border-emerald-200 bg-emerald-50 text-good",
+              brand: "border-blue-200 bg-blue-50 text-brand"
+            }[this.tone] || "border-line bg-white text-ink";
+          }
+        },
+        template: `
+          <article v-if="safeItems.length" class="rounded-lg border bg-white p-4">
+            <h3 class="text-sm font-semibold">{{ title }}</h3>
+            <ul class="mt-3 space-y-2">
+              <li v-for="(item, index) in safeItems" :key="index" :class="toneClass" class="rounded-md border px-3 py-2 text-sm leading-6">
+                {{ item }}
+              </li>
+            </ul>
+          </article>
+        `
+      };
+
+      Vue.createApp({
+        components: { ResultCard },
+        data() {
+          return {
+            resumeText: "",
+            jdText: "",
+            apiEndpoint: "",
+            isLoading: false,
+            errorMessage: "",
+            report: null,
+            fallbackMarkdown: "",
+            limits: {
+              resume: { min: 500, max: 4000 },
+              jd: { min: 100, max: 3000 }
+            }
+          };
+        },
+        computed: {
+          resumeCount() {
+            return this.countText(this.resumeText);
+          },
+          jdCount() {
+            return this.countText(this.jdText);
+          },
+          normalizedScore() {
+            const score = Number(this.report?.match_score ?? 0);
+            return Math.max(0, Math.min(100, Math.round(score)));
+          },
+          scoreBarClass() {
+            if (this.normalizedScore >= 80) return "bg-good";
+            if (this.normalizedScore >= 60) return "bg-warn";
+            return "bg-bad";
+          },
+          decisionClass() {
+            const text = String(this.report?.decision || "");
+            if (/强烈推荐|推荐|通过/.test(text)) return "text-good";
+            if (/谨慎|待定|补充/.test(text)) return "text-warn";
+            return "text-bad";
+          },
+          fallbackHtml() {
+            return this.renderMarkdownLite(this.fallbackMarkdown);
+          }
+        },
+        watch: {
+          resumeText(value) {
+            localStorage.setItem(STORAGE_KEYS.resume, value);
+          },
+          apiEndpoint(value) {
+            localStorage.setItem(STORAGE_KEYS.endpoint, value);
+          }
+        },
+        mounted() {
+          this.resumeText = localStorage.getItem(STORAGE_KEYS.resume) || "";
+          this.apiEndpoint =
+            localStorage.getItem(STORAGE_KEYS.endpoint) ||
+            "https://resumatch-gateway.hamhome-680ce447.workers.dev";
+        },
+        methods: {
+          countText(value) {
+            return String(value || "").replace(/\s+/g, "").length;
+          },
+          counterClass(count, min, max) {
+            return count >= min && count <= max ? "text-good" : "text-muted";
+          },
+          validate() {
+            this.errorMessage = "";
+            if (!this.apiEndpoint.trim()) return "请先填写 Cloudflare Worker 网关地址。";
+            if (this.resumeCount < this.limits.resume.min || this.resumeCount > this.limits.resume.max) {
+              return `简历文本需控制在 ${this.limits.resume.min}-${this.limits.resume.max} 字，当前为 ${this.resumeCount} 字。`;
+            }
+            if (this.jdCount < this.limits.jd.min || this.jdCount > this.limits.jd.max) {
+              return `JD 文本需控制在 ${this.limits.jd.min}-${this.limits.jd.max} 字，当前为 ${this.jdCount} 字。`;
+            }
+            return "";
+          },
+          async startCheck() {
+            const validationError = this.validate();
+            if (validationError) {
+              this.errorMessage = validationError;
+              window.alert(validationError);
+              return;
+            }
+
+            this.isLoading = true;
+            this.report = null;
+            this.fallbackMarkdown = "";
+
+            try {
+              const response = await fetch(this.apiEndpoint.trim(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  resume_text: this.resumeText.trim(),
+                  jd_text: this.jdText.trim()
+                })
+              });
+
+              const raw = await response.text();
+              if (!response.ok) {
+                throw new Error(this.extractError(raw) || `网关请求失败：HTTP ${response.status}`);
+              }
+              this.consumeAiResponse(raw);
+            } catch (error) {
+              this.errorMessage = error.message || "检测失败，请稍后重试。";
+            } finally {
+              this.isLoading = false;
+            }
+          },
+          consumeAiResponse(raw) {
+            const cleaned = this.stripJsonFence(raw);
+            try {
+              const parsed = JSON.parse(cleaned);
+              const payload = typeof parsed.content === "string" ? JSON.parse(this.stripJsonFence(parsed.content)) : parsed;
+              this.report = payload;
+            } catch (error) {
+              this.fallbackMarkdown = raw;
+            }
+          },
+          stripJsonFence(value) {
+            return String(value || "")
+              .trim()
+              .replace(/^```(?:json)?\s*/i, "")
+              .replace(/\s*```$/i, "")
+              .trim();
+          },
+          extractError(raw) {
+            try {
+              return JSON.parse(raw).error;
+            } catch (error) {
+              return raw;
+            }
+          },
+          escapeHtml(value) {
+            return String(value)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;");
+          },
+          renderMarkdownLite(value) {
+            return this.escapeHtml(value)
+              .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+              .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+              .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+              .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+              .replace(/^- (.*)$/gm, "<div>• $1</div>");
+          }
+        }
+      }).mount("#app");
+    </script>
+  </body>
+</html>
