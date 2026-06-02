@@ -6,6 +6,9 @@
     <title>ResuMatch / 简历全检官</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs" type="module"></script>
+    <script src="https://unpkg.com/mammoth@1.9.0/mammoth.browser.min.js"></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <script>
       tailwind.config = {
         theme: {
@@ -30,9 +33,9 @@
         <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
           <div>
             <h1 class="text-xl font-semibold tracking-tight">ResuMatch / 简历全检官</h1>
-            <p class="mt-1 text-sm text-muted">简历与目标 JD 匹配度评估 · AI 硬伤排查 · 投递建议</p>
+            <p class="mt-1 text-sm text-muted">上传简历，粘贴 JD，一键获得 AI 匹配度和定向优化建议</p>
           </div>
-          <div class="rounded-full border border-line px-3 py-1 text-xs text-muted">v1.0</div>
+          <div class="rounded-full border border-line px-3 py-1 text-xs text-muted">v2.0 全托管版</div>
         </div>
       </header>
 
@@ -40,22 +43,48 @@
         <section class="space-y-4">
           <div class="rounded-lg border border-line bg-white p-4">
             <div class="mb-3 flex items-end justify-between gap-3">
-              <label for="resume" class="text-sm font-semibold">候选人简历文本</label>
+              <div>
+                <h2 class="text-sm font-semibold">候选人简历</h2>
+                <p class="mt-1 text-xs text-muted">文件仅在本地解析，数据受隐私协议保护</p>
+              </div>
               <span :class="counterClass(resumeCount, limits.resume.min, limits.resume.max)" class="text-xs">
                 {{ resumeCount }} / {{ limits.resume.min }}-{{ limits.resume.max }} 字
               </span>
             </div>
-            <textarea
-              id="resume"
-              v-model="resumeText"
-              class="min-h-[300px] w-full resize-y rounded-md border border-line bg-white p-3 text-sm leading-6 outline-none transition focus:border-brand focus:ring-2 focus:ring-blue-100"
-              placeholder="粘贴候选人的最新简历文本。系统会自动保存到浏览器本地，下次打开自动回显。"
-            ></textarea>
+
+            <div v-if="resumeMode === 'file'">
+              <label
+                for="resume-file"
+                @dragover.prevent="isDragging = true"
+                @dragleave.prevent="isDragging = false"
+                @drop.prevent="handleDrop"
+                :class="isDragging ? 'border-brand bg-blue-50' : 'border-line bg-slate-50'"
+                class="flex min-h-[250px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 text-center transition"
+              >
+                <input id="resume-file" class="hidden" type="file" accept=".pdf,.doc,.docx" @change="handleFileSelect" />
+                <div class="text-base font-semibold">拖拽 PDF / Word 简历到这里</div>
+                <div class="mt-2 text-sm text-muted">也可以点击选择文件，支持 .pdf、.doc、.docx</div>
+                <div v-if="fileName" class="mt-4 rounded-full bg-white px-3 py-1 text-xs text-muted">{{ fileName }}</div>
+                <div v-if="isParsing" class="mt-4 text-sm text-brand">正在本地解析文件...</div>
+              </label>
+              <button class="mt-3 text-sm font-semibold text-brand" @click="resumeMode = 'text'">切换为文本粘贴模式</button>
+            </div>
+
+            <div v-else>
+              <textarea
+                v-model="resumeText"
+                class="min-h-[250px] w-full resize-y rounded-md border border-line bg-white p-3 text-sm leading-6 outline-none transition focus:border-brand focus:ring-2 focus:ring-blue-100"
+                placeholder="当文件损坏或格式不兼容时，可直接粘贴简历纯文本。"
+              ></textarea>
+              <button class="mt-3 text-sm font-semibold text-brand" @click="resumeMode = 'file'">切换为文件上传模式</button>
+            </div>
+
+            <p v-if="parseMessage" class="mt-3 rounded-md bg-amber-50 p-3 text-sm text-warn">{{ parseMessage }}</p>
           </div>
 
           <div class="rounded-lg border border-line bg-white p-4">
             <div class="mb-3 flex items-end justify-between gap-3">
-              <label for="jd" class="text-sm font-semibold">目标岗位 JD 文本</label>
+              <label for="jd" class="text-sm font-semibold">目标岗位 JD</label>
               <span :class="counterClass(jdCount, limits.jd.min, limits.jd.max)" class="text-xs">
                 {{ jdCount }} / {{ limits.jd.min }}-{{ limits.jd.max }} 字
               </span>
@@ -63,29 +92,30 @@
             <textarea
               id="jd"
               v-model="jdText"
-              class="min-h-[220px] w-full resize-y rounded-md border border-line bg-white p-3 text-sm leading-6 outline-none transition focus:border-brand focus:ring-2 focus:ring-blue-100"
-              placeholder="粘贴目标岗位 JD，包括岗位职责、任职要求、技术栈、年限和加分项。"
+              class="min-h-[230px] w-full resize-y rounded-md border border-line bg-white p-3 text-sm leading-6 outline-none transition focus:border-brand focus:ring-2 focus:ring-blue-100"
+              placeholder="复制招聘网站的岗位职责、任职要求、技术栈、年限和加分项。"
             ></textarea>
           </div>
         </section>
 
         <aside class="space-y-4 lg:sticky lg:top-5 lg:self-start">
           <div class="rounded-lg border border-line bg-white p-4">
-            <label for="endpoint" class="text-sm font-semibold">Worker 网关地址</label>
-            <input
-              id="endpoint"
-              v-model="apiEndpoint"
-              class="mt-3 w-full rounded-md border border-line px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-blue-100"
-              placeholder="https://your-worker.your-subdomain.workers.dev"
-            />
             <button
-              :disabled="isLoading"
+              :disabled="isLoading || isParsing"
               @click="startCheck"
-              class="mt-4 flex w-full items-center justify-center rounded-md bg-brand px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+              class="flex w-full items-center justify-center rounded-md bg-brand px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
               <span v-if="isLoading" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
-              {{ isLoading ? "检测中，请稍候" : "开始检测" }}
+              {{ isLoading ? "智能检测中，请稍候" : "一键智能检测" }}
             </button>
+            <button
+              :disabled="isLoading"
+              @click="loadExample"
+              class="mt-3 w-full rounded-md border border-line px-4 py-2 text-sm font-semibold text-ink transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-muted"
+            >
+              加载示例数据
+            </button>
+            <div id="turnstile-container" class="mt-3"></div>
             <p v-if="errorMessage" class="mt-3 rounded-md bg-red-50 p-3 text-sm text-bad">{{ errorMessage }}</p>
           </div>
 
@@ -101,12 +131,9 @@
               </div>
             </div>
             <div class="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
-              <div
-                class="h-full rounded-full transition-all duration-700"
-                :class="scoreBarClass"
-                :style="{ width: normalizedScore + '%' }"
-              ></div>
+              <div class="h-full rounded-full transition-all duration-700" :class="scoreBarClass" :style="{ width: normalizedScore + '%' }"></div>
             </div>
+            <p v-if="report.summary" class="mt-4 text-sm leading-6 text-muted">{{ report.summary }}</p>
           </section>
 
           <section v-if="report" class="space-y-3">
@@ -114,24 +141,27 @@
             <result-card title="匹配优势" tone="good" :items="report.strengths"></result-card>
             <result-card title="短板与疑点" tone="warn" :items="report.weaknesses"></result-card>
             <result-card title="修改建议" tone="brand" :items="report.rewrite_suggestions"></result-card>
+            <result-card title="面试追问" tone="warn" :items="report.interview_focus"></result-card>
           </section>
 
           <section v-if="fallbackMarkdown" class="rounded-lg border border-line bg-white p-4">
             <h2 class="text-sm font-semibold">AI 原始报告</h2>
-            <div class="prose prose-sm mt-3 max-w-none whitespace-pre-wrap text-sm leading-6" v-html="fallbackHtml"></div>
+            <div class="mt-3 max-w-none whitespace-pre-wrap text-sm leading-6" v-html="fallbackHtml"></div>
           </section>
 
           <section v-if="!report && !fallbackMarkdown" class="rounded-lg border border-line bg-white p-4 text-sm leading-6 text-muted">
-            完成检测后，这里会显示匹配分、硬伤、优势、劣势和简历改写建议。前端会优先解析结构化 JSON；若 AI 返回异常文本，会自动降级展示原始 Markdown 报告。
+            未检测时可先加载示例数据试用。检测成功后，这里会展示匹配分、硬伤、优势、短板、定向改写建议和面试追问。
           </section>
         </aside>
       </main>
     </div>
 
     <script>
+      const API_ENDPOINT = "https://resumatch-gateway.hamhome-680ce447.workers.dev";
+      const TURNSTILE_SITE_KEY = "";
       const STORAGE_KEYS = {
         resume: "resumatch.resumeText",
-        endpoint: "resumatch.apiEndpoint"
+        jd: "resumatch.jdText"
       };
 
       const ResultCard = {
@@ -166,11 +196,15 @@
         components: { ResultCard },
         data() {
           return {
+            resumeMode: "file",
             resumeText: "",
             jdText: "",
-            apiEndpoint: "",
+            fileName: "",
+            isDragging: false,
+            isParsing: false,
             isLoading: false,
             errorMessage: "",
+            parseMessage: "",
             report: null,
             fallbackMarkdown: "",
             limits: {
@@ -197,7 +231,7 @@
           },
           decisionClass() {
             const text = String(this.report?.decision || "");
-            if (/强烈推荐|推荐|通过/.test(text)) return "text-good";
+            if (/强烈推荐|推荐/.test(text) && !/不推荐/.test(text)) return "text-good";
             if (/谨慎|待定|补充/.test(text)) return "text-warn";
             return "text-bad";
           },
@@ -209,26 +243,84 @@
           resumeText(value) {
             localStorage.setItem(STORAGE_KEYS.resume, value);
           },
-          apiEndpoint(value) {
-            localStorage.setItem(STORAGE_KEYS.endpoint, value);
+          jdText(value) {
+            localStorage.setItem(STORAGE_KEYS.jd, value);
           }
         },
         mounted() {
           this.resumeText = localStorage.getItem(STORAGE_KEYS.resume) || "";
-          this.apiEndpoint =
-            localStorage.getItem(STORAGE_KEYS.endpoint) ||
-            "https://resumatch-gateway.hamhome-680ce447.workers.dev";
+          this.jdText = localStorage.getItem(STORAGE_KEYS.jd) || "";
         },
         methods: {
           countText(value) {
             return String(value || "").replace(/\s+/g, "").length;
           },
           counterClass(count, min, max) {
-            return count >= min && count <= max ? "text-good" : "text-muted";
+            if (count === 0) return "text-muted";
+            return count >= min && count <= max ? "text-good" : "text-bad";
+          },
+          async handleDrop(event) {
+            this.isDragging = false;
+            const file = event.dataTransfer.files?.[0];
+            if (file) await this.parseResumeFile(file);
+          },
+          async handleFileSelect(event) {
+            const file = event.target.files?.[0];
+            if (file) await this.parseResumeFile(file);
+            event.target.value = "";
+          },
+          async parseResumeFile(file) {
+            this.parseMessage = "";
+            this.errorMessage = "";
+            this.fileName = file.name;
+            this.isParsing = true;
+
+            try {
+              const ext = file.name.split(".").pop().toLowerCase();
+              if (ext === "pdf") {
+                this.resumeText = await this.extractPdfText(file);
+              } else if (ext === "docx") {
+                this.resumeText = await this.extractDocxText(file);
+              } else if (ext === "doc") {
+                this.resumeMode = "text";
+                this.parseMessage = "旧版 .doc 文件无法在浏览器内稳定解析。请另存为 .docx/.pdf，或直接粘贴简历文本。";
+              } else {
+                this.parseMessage = "暂只支持 .pdf、.doc、.docx 文件。";
+              }
+
+              if (this.resumeText && (this.resumeCount < this.limits.resume.min || this.resumeCount > this.limits.resume.max)) {
+                this.parseMessage = `已解析 ${this.resumeCount} 字，简历文本需控制在 500-4000 字。`;
+              }
+            } catch (error) {
+              this.resumeMode = "text";
+              this.parseMessage = error.message || "文件解析失败，请切换为文本粘贴模式。";
+            } finally {
+              this.isParsing = false;
+            }
+          },
+          async extractPdfText(file) {
+            const pdfjsLib = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs");
+            pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+            const data = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data }).promise;
+            const pages = [];
+            for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+              const page = await pdf.getPage(pageNumber);
+              const content = await page.getTextContent();
+              pages.push(content.items.map((item) => item.str).join(" "));
+            }
+            return pages.join("\n").trim();
+          },
+          async extractDocxText(file) {
+            if (!window.mammoth) {
+              throw new Error("Word 解析库加载失败，请稍后重试或粘贴文本。");
+            }
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await window.mammoth.extractRawText({ arrayBuffer });
+            return String(result.value || "").trim();
           },
           validate() {
             this.errorMessage = "";
-            if (!this.apiEndpoint.trim()) return "请先填写 Cloudflare Worker 网关地址。";
             if (this.resumeCount < this.limits.resume.min || this.resumeCount > this.limits.resume.max) {
               return `简历文本需控制在 ${this.limits.resume.min}-${this.limits.resume.max} 字，当前为 ${this.resumeCount} 字。`;
             }
@@ -250,12 +342,14 @@
             this.fallbackMarkdown = "";
 
             try {
-              const response = await fetch(this.apiEndpoint.trim(), {
+              const turnstileToken = await this.getTurnstileToken();
+              const response = await fetch(API_ENDPOINT, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   resume_text: this.resumeText.trim(),
-                  jd_text: this.jdText.trim()
+                  jd_text: this.jdText.trim(),
+                  turnstile_token: turnstileToken
                 })
               });
 
@@ -269,6 +363,25 @@
             } finally {
               this.isLoading = false;
             }
+          },
+          getTurnstileToken() {
+            return new Promise((resolve, reject) => {
+              if (!TURNSTILE_SITE_KEY) {
+                resolve("");
+                return;
+              }
+              if (!window.turnstile) {
+                reject(new Error("人机校验组件加载失败，请刷新页面后重试。"));
+                return;
+              }
+              const widgetId = window.turnstile.render("#turnstile-container", {
+                sitekey: TURNSTILE_SITE_KEY,
+                size: "invisible",
+                callback: (token) => resolve(token),
+                "error-callback": () => reject(new Error("人机校验失败，请稍后重试。"))
+              });
+              window.turnstile.execute(widgetId);
+            });
           },
           consumeAiResponse(raw) {
             const cleaned = this.stripJsonFence(raw);
@@ -308,6 +421,13 @@
               .replace(/^# (.*)$/gm, "<h1>$1</h1>")
               .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
               .replace(/^- (.*)$/gm, "<div>• $1</div>");
+          },
+          loadExample() {
+            this.resumeMode = "text";
+            this.resumeText =
+              "候选人拥有六年后端研发经验，长期负责 Java 微服务、Spring Boot、MySQL、Redis、消息队列和云原生平台建设。曾在电商交易系统中负责订单、库存、支付对账等核心模块，参与高并发改造、接口性能优化、故障排查和稳定性治理。熟悉分布式事务、缓存一致性、限流降级、链路追踪、CI/CD、Docker 和 Kubernetes。具备从需求评审、技术方案设计、编码实现、测试联调到线上运维的完整交付经验。项目中推动接口响应时间下降、慢查询治理、服务拆分和监控告警完善。能够与产品、测试、运营和业务团队协作，具备一定团队带教和代码评审经验。候选人在多个项目中承担核心模块 owner，能独立推进技术方案落地，对业务指标、系统稳定性和研发效率均有关注。";
+            this.jdText =
+              "招聘资深 Java 后端工程师，要求五年以上后端开发经验，熟悉 Spring Boot、微服务架构、MySQL、Redis、消息队列，具备高并发系统设计、性能优化、线上问题排查和云原生部署经验，有电商交易、订单、库存或支付系统经验优先。需要能独立负责核心模块设计，与产品和测试协作推进交付，具备代码评审、技术文档和线上稳定性治理经验。";
           }
         }
       }).mount("#app");

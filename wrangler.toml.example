@@ -11,6 +11,8 @@ AI_PROVIDER = "deepseek"
 AI_MODEL = "deepseek-chat"
 AI_API_BASE = "https://api.deepseek.com/chat/completions"
 ALLOWED_ORIGINS = "https://your-official-domain.com"
+TURNSTILE_REQUIRED = "false"
 
 # Configure secret separately:
 # wrangler secret put AI_API_KEY
+# wrangler secret put TURNSTILE_SECRET_KEY

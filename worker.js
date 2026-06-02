@@ -1,15 +1,23 @@
 const DEFAULT_ALLOWED_ORIGINS = [];
 const RATE_LIMIT_WINDOW_SECONDS = 24 * 60 * 60;
-const RATE_LIMIT_MAX = 15;
+const RATE_LIMIT_MAX = 10;
 
-const SYSTEM_PROMPT = `你是一名拥有 10 年以上经验的大厂技术猎头兼研发主管。
-请严苛评估候选人简历与目标 JD 的匹配度，重点识别硬性不匹配、履历疑点、技能栈缺口、项目可信度和可修改的表达问题。
-你必须只输出 JSON，不要输出 Markdown，不要解释 JSON 外的任何内容。
+const SYSTEM_PROMPT = `# Role
+你是一位拥有 10 年以上经验的综合型大厂技术猎头兼研发 Head（主管）。你目光毒辣，擅长在几秒钟内捕捉简历与岗位描述（JD）的契合度，并能一眼看出候选人是否具备核心实力与可迁移潜力。
+
+# Task
+请对比分析下方的 [候选人简历] 与 [目标职位JD]。你需要从严苛的 HR 视角出发，完成三个维度的评估：
+1. 核心门槛检查（一票否决项，如年限严重断层、学历严重不符等。若年限差距在 1 年以内且项目极佳，不视作硬伤）
+2. 多维度匹配度打分
+3. 针对该职位的简历定向优化建议（重点在于挖掘和转换可迁移能力，严禁造假）
+
+# Output Format
+你必须且只能输出一个标准 JSON 对象，不要包含任何前导、后导文本或 Markdown 代码块标记。
 Schema:
 {
   "decision": "强烈推荐|推荐|谨慎推荐|不推荐",
   "match_score": 0-100,
-  "hard_flaws": ["硬伤或一票否决点"],
+  "hard_flaws": ["硬伤或一票否决项"],
   "strengths": ["与 JD 匹配的优势"],
   "weaknesses": ["短板、疑点或需要补证的地方"],
   "rewrite_suggestions": ["可直接用于修改简历的建议"],
@@ -18,7 +26,7 @@ Schema:
 }`;
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
     const corsHeaders = buildCorsHeaders(origin, env);
 
@@ -34,17 +42,22 @@ export default {
       return json({ error: "Forbidden origin" }, 403, corsHeaders);
     }
 
-    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-    const rateLimited = await hitRateLimit(ip, env);
-    if (rateLimited) {
-      return json({ error: "今日检测次数已达上限，请 24 小时后再试。" }, 429, corsHeaders);
-    }
-
     let payload;
     try {
       payload = await request.json();
     } catch (error) {
       return json({ error: "请求体必须是 JSON。" }, 400, corsHeaders);
+    }
+
+    const turnstileError = await verifyTurnstile(payload.turnstile_token, request, env);
+    if (turnstileError) {
+      return json({ error: turnstileError }, 403, corsHeaders);
+    }
+
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const rateLimited = await hitRateLimit(ip, env);
+    if (rateLimited) {
+      return json({ error: "今日检测次数已达上限，请 24 小时后再试。" }, 429, corsHeaders);
     }
 
     const resumeText = String(payload.resume_text || "").trim();
@@ -78,8 +91,7 @@ function getAllowedOrigins(env) {
 }
 
 function isAllowedOrigin(origin, env) {
-  const allowedOrigins = getAllowedOrigins(env);
-  return allowedOrigins.includes(origin);
+  return getAllowedOrigins(env).includes(origin);
 }
 
 function buildCorsHeaders(origin, env) {
@@ -90,6 +102,26 @@ function buildCorsHeaders(origin, env) {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400"
   };
+}
+
+async function verifyTurnstile(token, request, env) {
+  const required = String(env.TURNSTILE_REQUIRED || "false").toLowerCase() === "true";
+  const secret = env.TURNSTILE_SECRET_KEY;
+  if (!required && !secret) return "";
+  if (!secret) return "Turnstile 未配置服务端密钥。";
+  if (!token) return "请先完成人机校验。";
+
+  const formData = new FormData();
+  formData.append("secret", secret);
+  formData.append("response", token);
+  formData.append("remoteip", request.headers.get("CF-Connecting-IP") || "");
+
+  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    method: "POST",
+    body: formData
+  });
+  const result = await response.json();
+  return result.success ? "" : "人机校验未通过，请刷新页面后重试。";
 }
 
 async function hitRateLimit(ip, env) {

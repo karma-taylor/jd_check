@@ -1,54 +1,29 @@
 # ResuMatch / 简历全检官
 
-这是一个按 v1.0 workflow 落地的最小可运行版本：
+v2.0 全托管免配置版：用户上传简历文件并粘贴目标 JD，即可一键检测。前端不再暴露或要求填写 Worker 网关地址。
 
-- `index.html`：HTML5 + Tailwind CSS + Vue3 单页应用。
-- `worker.js`：Cloudflare Workers 网关，负责 CORS、IP 频控、服务端密钥注入和 AI 请求转发。
-- `wrangler.toml.example`：Cloudflare 部署配置样例。
+## 功能
 
-## 前端能力
-
-- 页面加载时读取 `LocalStorage` 中的历史简历文本并自动回显。
+- PDF / DOCX 简历在浏览器本地解析，不上传文件原件。
+- 旧版 `.doc` 文件提供文本粘贴降级入口，避免隐私风险和解析失败卡死。
 - 简历文本限制 `500-4000` 字，JD 文本限制 `100-3000` 字。
-- 点击“开始检测”后锁定按钮为 loading，避免重复并发请求。
-- 优先解析 AI 返回的 JSON，并按 `decision`、`match_score`、`hard_flaws`、`strengths`、`weaknesses`、`rewrite_suggestions` 渲染。
-- 如果 JSON 解析失败，自动降级为原始 Markdown 报告展示。
+- 固定调用官方 Worker 网关，用户零配置。
+- Worker 执行 CORS、IP 频控、Turnstile 校验入口和 AI Secret 注入。
+- AI 返回 JSON 时渲染评分、硬伤、优势、短板、建议和面试追问；JSON 异常时降级展示原始文本。
 
-## Worker 能力
+## 已上线地址
 
-- 仅允许 `ALLOWED_ORIGINS` 中配置的官方域名调用。
-- 基于 `CF-Connecting-IP` 做 24 小时 15 次的频控。
-- `AI_API_KEY` 只从 Worker Secret 读取，不暴露给浏览器。
-- 默认调用 DeepSeek，也可通过环境变量切换到 OpenAI 兼容接口。
-- 固定 `temperature = 0.3`，并要求模型输出 JSON。
+- Pages: `https://resumatch-7cv.pages.dev`
+- Worker: `https://resumatch-gateway.hamhome-680ce447.workers.dev`
 
 ## 部署
 
-1. 复制配置：
+```bash
+wrangler deploy
+wrangler pages deploy <static-site-dir> --project-name=resumatch --branch=main --commit-dirty=true
+```
 
-   ```bash
-   cp wrangler.toml.example wrangler.toml
-   ```
-
-2. 创建 KV 命名空间，并把返回的 ID 填入 `wrangler.toml`：
-
-   ```bash
-   wrangler kv namespace create RATE_LIMIT_KV
-   ```
-
-3. 配置密钥：
-
-   ```bash
-   wrangler secret put AI_API_KEY
-   ```
-
-4. 发布 Worker：
-
-   ```bash
-   wrangler deploy
-   ```
-
-5. 将 `index.html` 部署到你的官方网站，并把页面里的“Worker 网关地址”设置为 Worker 路由。
+建议 Pages 只发布包含 `index.html` 的静态目录，避免把 Worker 源码作为静态文件暴露。
 
 ## 环境变量
 
@@ -59,8 +34,16 @@
 | `AI_MODEL` | 默认 `deepseek-chat`，OpenAI 可设为 `gpt-4o-mini` |
 | `AI_API_BASE` | Chat Completions 兼容地址 |
 | `ALLOWED_ORIGINS` | 官方前端域名，多个域名用英文逗号分隔 |
+| `TURNSTILE_REQUIRED` | 是否强制 Turnstile，默认 `false` |
+| `TURNSTILE_SECRET_KEY` | Turnstile 服务端密钥，通过 secret 配置 |
 
-## 后续增强点
+开启 Turnstile 时，还需要把 `index.html` 里的 `TURNSTILE_SITE_KEY` 设置为 Cloudflare Turnstile 站点 Key，并执行：
 
-- 极端截断 JSON 可接入 `json-repair`，进一步提升解析成功率。
-- 若后续支持 PDF/Word 原件存储，浏览器端应从 `LocalStorage` 升级到 `IndexedDB`。
+```bash
+wrangler secret put TURNSTILE_SECRET_KEY
+```
+
+## 成本控制
+
+- Worker KV 按 `CF-Connecting-IP` 做 24 小时 10 次限流。
+- DeepSeek 后台应设置每日消费 Hard Limit，建议先设低预算灰度观察。
