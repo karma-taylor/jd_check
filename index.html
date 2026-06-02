@@ -184,7 +184,7 @@
                 </div>
               </div>
               <span :class="decisionBadgeClass" class="mt-6 inline-flex items-center rounded-full border px-4 py-1.5 text-sm font-bold shadow-sm">
-                {{ report.decision || "待判断" }}
+                冲锋指数：{{ report.decision || "待判断" }}
               </span>
             </div>
 
@@ -203,7 +203,7 @@
                   </svg>
                 </div>
                 <div>
-                  <h4 class="text-xs font-bold text-rose-800">硬伤 / 卡点</h4>
+                  <h4 class="text-xs font-bold text-rose-800">避坑红牌（注意卡死项）</h4>
                   <p v-for="item in arrayItems(report.hard_flaws)" :key="item" class="mt-1 text-xs leading-relaxed text-rose-700">{{ item }}</p>
                 </div>
               </div>
@@ -211,8 +211,8 @@
           </div>
 
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <report-list title="匹配优势" tone="good" :items="matchedPoints"></report-list>
-            <report-list title="能力缺口" tone="warn" :items="missingPoints"></report-list>
+            <report-list title="你的简历亮点" tone="good" :items="matchedPoints"></report-list>
+            <report-list title="可能被卡的地方" tone="warn" :items="missingPoints"></report-list>
           </div>
 
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
