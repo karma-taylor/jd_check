@@ -1,6 +1,7 @@
 const DEFAULT_ALLOWED_ORIGINS = [];
 const RATE_LIMIT_WINDOW_SECONDS = 24 * 60 * 60;
 const RATE_LIMIT_MAX = 10;
+const MAX_BODY_BYTES = 128 * 1024;
 
 const SYSTEM_PROMPT = `# Role
 你是一位拥有 10 年以上经验的大厂技术猎头兼研发主管。你只负责判断候选人简历与目标 JD 的匹配度，不改写简历，不提供包装话术，不鼓励夸大或造假。
@@ -47,6 +48,11 @@ export default {
 
     if (!isAllowedOrigin(origin, env)) {
       return json({ error: "Forbidden origin" }, 403, corsHeaders);
+    }
+
+    const contentLength = Number(request.headers.get("Content-Length") || "0");
+    if (contentLength > MAX_BODY_BYTES) {
+      return json({ error: "请求体过大，请缩短简历或 JD 后重试。" }, 413, corsHeaders);
     }
 
     let payload;
@@ -210,7 +216,10 @@ function json(body, status, headers = {}) {
     status,
     headers: {
       ...headers,
-      "Content-Type": "application/json; charset=utf-8"
+      "Content-Type": "application/json; charset=utf-8",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "Cache-Control": "no-store"
     }
   });
 }

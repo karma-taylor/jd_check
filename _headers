@@ -1,0 +1,18 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  X-Frame-Options: DENY
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://resumatch-gateway.hamhome-680ce447.workers.dev https://challenges.cloudflare.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://challenges.cloudflare.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests
+
+/worker.js
+  Content-Type: text/plain; charset=utf-8
+  X-Content-Type-Options: nosniff
+
+/wrangler.toml
+  Content-Type: text/plain; charset=utf-8
+  X-Content-Type-Options: nosniff
+
+/wrangler.toml.example
+  Content-Type: text/plain; charset=utf-8
+  X-Content-Type-Options: nosniff

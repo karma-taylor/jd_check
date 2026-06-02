@@ -62,3 +62,11 @@ wrangler secret put TURNSTILE_SECRET_KEY
 
 - Worker KV 按 `CF-Connecting-IP` 做 24 小时 10 次限流。
 - DeepSeek 后台应设置每日消费 Hard Limit，建议先设低预算灰度观察。
+
+## 安全加固
+
+- Pages 通过 `_headers` 设置 CSP、`X-Frame-Options: DENY`、`nosniff`、Referrer Policy 和权限收敛。
+- Worker 限制请求体最大 128KB，避免异常大 payload 消耗边缘资源。
+- Worker JSON 响应使用 `Cache-Control: no-store`，避免错误或分析结果被中间层缓存。
+- Cloudflare / GitHub 账号必须开启 2FA，并仅保留必要成员写权限。
+- Turnstile 代码入口已预留；创建 Site Key / Secret 后，将 `TURNSTILE_REQUIRED` 改为 `true` 并重新部署。
