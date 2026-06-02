@@ -1,20 +1,35 @@
 # ResuMatch / 简历全检官
 
-v2.0 全托管免配置版：用户上传简历文件并粘贴目标 JD，即可一键检测。前端不再暴露或要求填写 Worker 网关地址。
+v2.1 简历与 JD 匹配评分版：用户上传简历文件并粘贴目标 JD，系统只做匹配度评分、风险诊断和面试追问预测，不提供简历改写或包装建议。
 
 ## 功能
 
 - PDF / DOCX 简历在浏览器本地解析，不上传文件原件。
-- 旧版 `.doc` 文件提供文本粘贴降级入口，避免隐私风险和解析失败卡死。
+- 旧版 `.doc` 文件提供文本粘贴降级入口。
 - 简历文本限制 `500-4000` 字，JD 文本限制 `100-3000` 字。
 - 固定调用官方 Worker 网关，用户零配置。
 - Worker 执行 CORS、IP 频控、Turnstile 校验入口和 AI Secret 注入。
-- AI 返回 JSON 时渲染评分、硬伤、优势、短板、建议和面试追问；JSON 异常时降级展示原始文本。
+- AI 返回 JSON 时渲染匹配分、总评、硬伤、匹配优势、能力缺口、投递风险和面试追问点。
 
 ## 已上线地址
 
 - Pages: `https://resumatch-7cv.pages.dev`
 - Worker: `https://resumatch-gateway.hamhome-680ce447.workers.dev`
+
+## 输出 Schema
+
+```json
+{
+  "decision": "强匹配|可投递|谨慎投递|不建议投递",
+  "match_score": 0,
+  "summary": "总体匹配结论",
+  "hard_flaws": [],
+  "matched_points": [],
+  "missing_points": [],
+  "risk_points": [],
+  "interview_focus": []
+}
+```
 
 ## 部署
 
