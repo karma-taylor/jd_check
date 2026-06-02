@@ -2,6 +2,7 @@ const DEFAULT_ALLOWED_ORIGINS = [];
 const RATE_LIMIT_WINDOW_SECONDS = 24 * 60 * 60;
 const RATE_LIMIT_MAX = 10;
 const MAX_BODY_BYTES = 128 * 1024;
+const DEFAULT_DAILY_AI_LIMIT = 300;
 
 const SYSTEM_PROMPT = `# Role
 你是一位拥有 10 年以上经验的大厂技术猎头兼研发主管。你只负责判断候选人简历与目标 JD 的匹配度，不改写简历，不提供包装话术，不鼓励夸大或造假。
@@ -80,6 +81,11 @@ export default {
       return json({ error: validationError }, 400, corsHeaders);
     }
 
+    const dailyLimited = await hitDailyAiLimit(env);
+    if (dailyLimited) {
+      return json({ error: "今日全站 AI 检测额度已用完，请明天再试。" }, 429, corsHeaders);
+    }
+
     try {
       const aiContent = await evaluateWithAi(resumeText, jdText, env);
       return new Response(aiContent, {
@@ -150,6 +156,28 @@ async function hitRateLimit(ip, env) {
 
   await env.RATE_LIMIT_KV.put(key, String(current + 1), {
     expirationTtl: RATE_LIMIT_WINDOW_SECONDS
+  });
+  return false;
+}
+
+async function hitDailyAiLimit(env) {
+  if (!env.RATE_LIMIT_KV) {
+    return false;
+  }
+
+  const limit = Number(env.DAILY_AI_LIMIT || DEFAULT_DAILY_AI_LIMIT);
+  if (!Number.isFinite(limit) || limit <= 0) {
+    return false;
+  }
+
+  const key = `daily-ai:${new Date().toISOString().slice(0, 10)}`;
+  const current = Number((await env.RATE_LIMIT_KV.get(key)) || "0");
+  if (current >= limit) {
+    return true;
+  }
+
+  await env.RATE_LIMIT_KV.put(key, String(current + 1), {
+    expirationTtl: RATE_LIMIT_WINDOW_SECONDS + 60 * 60
   });
   return false;
 }

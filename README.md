@@ -51,6 +51,7 @@ wrangler pages deploy <static-site-dir> --project-name=resumatch --branch=main -
 | `ALLOWED_ORIGINS` | 官方前端域名，多个域名用英文逗号分隔 |
 | `TURNSTILE_REQUIRED` | 是否强制 Turnstile，默认 `false` |
 | `TURNSTILE_SECRET_KEY` | Turnstile 服务端密钥，通过 secret 配置 |
+| `DAILY_AI_LIMIT` | 全站每日 AI 调用上限，默认 `300` |
 
 开启 Turnstile 时，还需要把 `index.html` 里的 `TURNSTILE_SITE_KEY` 设置为 Cloudflare Turnstile 站点 Key，并执行：
 
@@ -61,6 +62,7 @@ wrangler secret put TURNSTILE_SECRET_KEY
 ## 成本控制
 
 - Worker KV 按 `CF-Connecting-IP` 做 24 小时 10 次限流。
+- Worker KV 按 UTC 日期做全站每日 AI 调用总上限，默认 `300` 次；达到上限后直接返回 `429`，不会继续请求 DeepSeek。
 - DeepSeek 后台应设置每日消费 Hard Limit，建议先设低预算灰度观察。
 
 ## 安全加固
