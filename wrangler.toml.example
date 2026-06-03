@@ -17,3 +17,4 @@ DAILY_AI_LIMIT = "40"
 # Configure secret separately:
 # wrangler secret put AI_API_KEY
 # wrangler secret put TURNSTILE_SECRET_KEY
+# wrangler secret put ADMIN_BYPASS_TOKEN

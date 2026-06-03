@@ -75,18 +75,23 @@ export default {
       return json({ error: validationError }, 400, corsHeaders);
     }
 
+    const isAdminBypass = isAdminBypassRequest(request, env);
     const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-    if (await isRateLimited(ip, env)) {
-      return json({ error: "今日检测次数已达上限，请 24 小时后再试。" }, 429, corsHeaders);
-    }
+    if (!isAdminBypass) {
+      if (await isRateLimited(ip, env)) {
+        return json({ error: "今日检测次数已达上限，请 24 小时后再试。" }, 429, corsHeaders);
+      }
 
-    if (await isDailyAiLimited(env)) {
-      return json({ error: "今日全站 AI 检测额度已用完，请明天再试。" }, 429, corsHeaders);
+      if (await isDailyAiLimited(env)) {
+        return json({ error: "今日全站 AI 检测额度已用完，请明天再试。" }, 429, corsHeaders);
+      }
     }
 
     try {
       const aiContent = await evaluateWithAi(resumeText, jdText, env);
-      await Promise.all([incrementRateLimit(ip, env), incrementDailyAiLimit(env)]);
+      if (!isAdminBypass) {
+        await Promise.all([incrementRateLimit(ip, env), incrementDailyAiLimit(env)]);
+      }
       return new Response(aiContent, {
         status: 200,
         headers: {
@@ -120,9 +125,15 @@ function buildCorsHeaders(origin, env) {
   return {
     "Access-Control-Allow-Origin": allowed ? origin : "null",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Bypass",
     "Access-Control-Max-Age": "86400"
   };
+}
+
+function isAdminBypassRequest(request, env) {
+  const expectedToken = String(env.ADMIN_BYPASS_TOKEN || "").trim();
+  const providedToken = String(request.headers.get("X-Admin-Bypass") || "").trim();
+  return Boolean(expectedToken && providedToken && expectedToken === providedToken);
 }
 
 async function verifyTurnstile(token, request, env) {

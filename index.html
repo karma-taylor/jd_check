@@ -242,6 +242,7 @@
     <script>
       const API_ENDPOINT = "https://resumatch-gateway.hamhome-680ce447.workers.dev";
       const TURNSTILE_SITE_KEY = "";
+      const ADMIN_BYPASS_STORAGE_KEY = "resumatch.adminBypassToken";
       const STORAGE_KEYS = {
         resume: "resumatch.resumeText",
         jd: "resumatch.jdText"
@@ -464,7 +465,7 @@
               const turnstileToken = await this.getTurnstileToken();
               const response = await fetch(API_ENDPOINT, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: this.buildRequestHeaders(),
                 body: JSON.stringify({
                   resume_text: this.resumeText.trim(),
                   jd_text: this.jdText.trim(),
@@ -483,6 +484,14 @@
             } finally {
               this.isLoading = false;
             }
+          },
+          buildRequestHeaders() {
+            const headers = { "Content-Type": "application/json" };
+            const adminToken = localStorage.getItem(ADMIN_BYPASS_STORAGE_KEY);
+            if (adminToken) {
+              headers["X-Admin-Bypass"] = adminToken;
+            }
+            return headers;
           },
           getTurnstileToken() {
             return new Promise((resolve, reject) => {

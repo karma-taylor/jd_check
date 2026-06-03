@@ -52,11 +52,30 @@ wrangler pages deploy <static-site-dir> --project-name=resumatch --branch=main -
 | `TURNSTILE_REQUIRED` | 是否强制 Turnstile，默认 `false` |
 | `TURNSTILE_SECRET_KEY` | Turnstile 服务端密钥，通过 secret 配置 |
 | `DAILY_AI_LIMIT` | 全站每日 AI 调用上限，默认 `40` |
+| `ADMIN_BYPASS_TOKEN` | 管理员测试绕过限流 token，通过 secret 配置 |
 
 开启 Turnstile 时，还需要把 `index.html` 里的 `TURNSTILE_SITE_KEY` 设置为 Cloudflare Turnstile 站点 Key，并执行：
 
 ```bash
 wrangler secret put TURNSTILE_SECRET_KEY
+```
+
+管理员测试期间如需绕过单 IP 和全站每日限流，先配置：
+
+```bash
+wrangler secret put ADMIN_BYPASS_TOKEN
+```
+
+然后在浏览器控制台写入同一个 token：
+
+```js
+localStorage.setItem("resumatch.adminBypassToken", "你的管理员 token")
+```
+
+清除管理员模式：
+
+```js
+localStorage.removeItem("resumatch.adminBypassToken")
 ```
 
 ## 成本控制
