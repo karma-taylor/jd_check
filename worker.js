@@ -2,7 +2,7 @@ const DEFAULT_ALLOWED_ORIGINS = [];
 const RATE_LIMIT_WINDOW_SECONDS = 24 * 60 * 60;
 const RATE_LIMIT_MAX = 10;
 const MAX_BODY_BYTES = 128 * 1024;
-const DEFAULT_DAILY_AI_LIMIT = 300;
+const DEFAULT_DAILY_AI_LIMIT = 40;
 
 const SYSTEM_PROMPT = `# Role
 你是一位拥有 10 年以上经验的大厂技术猎头兼研发主管。你只负责判断候选人简历与目标 JD 的匹配度，不改写简历，不提供包装话术，不鼓励夸大或造假。

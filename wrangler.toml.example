@@ -12,7 +12,7 @@ AI_MODEL = "deepseek-chat"
 AI_API_BASE = "https://api.deepseek.com/chat/completions"
 ALLOWED_ORIGINS = "https://your-official-domain.com"
 TURNSTILE_REQUIRED = "false"
-DAILY_AI_LIMIT = "300"
+DAILY_AI_LIMIT = "40"
 
 # Configure secret separately:
 # wrangler secret put AI_API_KEY
