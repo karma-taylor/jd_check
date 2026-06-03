@@ -68,12 +68,6 @@ export default {
       return json({ error: turnstileError }, 403, corsHeaders);
     }
 
-    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-    const rateLimited = await hitRateLimit(ip, env);
-    if (rateLimited) {
-      return json({ error: "今日检测次数已达上限，请 24 小时后再试。" }, 429, corsHeaders);
-    }
-
     const resumeText = String(payload.resume_text || "").trim();
     const jdText = String(payload.jd_text || "").trim();
     const validationError = validatePayload(resumeText, jdText);
@@ -81,18 +75,26 @@ export default {
       return json({ error: validationError }, 400, corsHeaders);
     }
 
-    const dailyLimited = await hitDailyAiLimit(env);
-    if (dailyLimited) {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    if (await isRateLimited(ip, env)) {
+      return json({ error: "今日检测次数已达上限，请 24 小时后再试。" }, 429, corsHeaders);
+    }
+
+    if (await isDailyAiLimited(env)) {
       return json({ error: "今日全站 AI 检测额度已用完，请明天再试。" }, 429, corsHeaders);
     }
 
     try {
       const aiContent = await evaluateWithAi(resumeText, jdText, env);
+      await Promise.all([incrementRateLimit(ip, env), incrementDailyAiLimit(env)]);
       return new Response(aiContent, {
         status: 200,
         headers: {
           ...corsHeaders,
-          "Content-Type": "application/json; charset=utf-8"
+          "Content-Type": "application/json; charset=utf-8",
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+          "Cache-Control": "no-store"
         }
       });
     } catch (error) {
@@ -143,43 +145,47 @@ async function verifyTurnstile(token, request, env) {
   return result.success ? "" : "人机校验未通过，请刷新页面后重试。";
 }
 
-async function hitRateLimit(ip, env) {
-  if (!env.RATE_LIMIT_KV) {
-    return false;
-  }
+async function isRateLimited(ip, env) {
+  if (!env.RATE_LIMIT_KV) return false;
+  const current = Number((await env.RATE_LIMIT_KV.get(`rate:${ip}`)) || "0");
+  return current >= RATE_LIMIT_MAX;
+}
 
+async function incrementRateLimit(ip, env) {
+  if (!env.RATE_LIMIT_KV) return;
   const key = `rate:${ip}`;
   const current = Number((await env.RATE_LIMIT_KV.get(key)) || "0");
-  if (current >= RATE_LIMIT_MAX) {
-    return true;
-  }
-
   await env.RATE_LIMIT_KV.put(key, String(current + 1), {
     expirationTtl: RATE_LIMIT_WINDOW_SECONDS
   });
-  return false;
 }
 
-async function hitDailyAiLimit(env) {
-  if (!env.RATE_LIMIT_KV) {
-    return false;
-  }
+async function isDailyAiLimited(env) {
+  if (!env.RATE_LIMIT_KV) return false;
+  const limit = getDailyAiLimit(env);
+  if (limit <= 0) return false;
+  const current = Number((await env.RATE_LIMIT_KV.get(getDailyAiKey())) || "0");
+  return current >= limit;
+}
 
-  const limit = Number(env.DAILY_AI_LIMIT || DEFAULT_DAILY_AI_LIMIT);
-  if (!Number.isFinite(limit) || limit <= 0) {
-    return false;
-  }
-
-  const key = `daily-ai:${new Date().toISOString().slice(0, 10)}`;
+async function incrementDailyAiLimit(env) {
+  if (!env.RATE_LIMIT_KV) return;
+  const limit = getDailyAiLimit(env);
+  if (limit <= 0) return;
+  const key = getDailyAiKey();
   const current = Number((await env.RATE_LIMIT_KV.get(key)) || "0");
-  if (current >= limit) {
-    return true;
-  }
-
   await env.RATE_LIMIT_KV.put(key, String(current + 1), {
     expirationTtl: RATE_LIMIT_WINDOW_SECONDS + 60 * 60
   });
-  return false;
+}
+
+function getDailyAiLimit(env) {
+  const limit = Number(env.DAILY_AI_LIMIT || DEFAULT_DAILY_AI_LIMIT);
+  return Number.isFinite(limit) ? limit : DEFAULT_DAILY_AI_LIMIT;
+}
+
+function getDailyAiKey() {
+  return `daily-ai:${new Date().toISOString().slice(0, 10)}`;
 }
 
 function validatePayload(resumeText, jdText) {
