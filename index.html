@@ -57,6 +57,62 @@
       </header>
 
       <main class="mx-auto flex w-full max-w-6xl flex-grow flex-col gap-6 px-4 py-8">
+        <section v-if="viewState === 'input'" class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">我的求职画像</h2>
+              <p class="mt-1 text-xs leading-5 text-slate-500">可选填写。画像只保存在本地浏览器，用于判断这份 JD 是 A 类、B 类还是 C 类。</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" @click="profileCollapsed = !profileCollapsed">
+                {{ profileCollapsed ? "展开画像" : "收起画像" }}
+              </button>
+              <button class="rounded-md border border-rose-100 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100" @click="clearProfile">
+                清空画像
+              </button>
+            </div>
+          </div>
+
+          <div v-if="!profileCollapsed" class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">目标岗位方向</span>
+              <input v-model="userProfile.target_roles_text" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="如：AI产品经理、Java后端、数据分析师" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">可接受岗位方向</span>
+              <input v-model="userProfile.acceptable_roles_text" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="如：产品助理、SaaS产品、内部工具" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">不考虑岗位方向</span>
+              <input v-model="userProfile.rejected_roles_text" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="如：销售、客服、纯运营" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">目标行业</span>
+              <input v-model="userProfile.target_industries_text" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="如：AI、SaaS、教育、互联网" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">不考虑行业</span>
+              <input v-model="userProfile.rejected_industries_text" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="如：金融、医疗、硬件、外包" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">年限偏好</span>
+              <input v-model="userProfile.experience_preference" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="如：不限、1-3年、不要专家岗" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">薪资区间</span>
+              <input v-model="userProfile.salary_preference" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="如：15-30K、20-35K" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">城市 / 远程偏好</span>
+              <input v-model="userProfile.location_preference" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="如：上海、杭州、可远程、不出差" />
+            </label>
+            <label class="block md:col-span-2 lg:col-span-1">
+              <span class="text-xs font-semibold text-slate-700">硬性底线</span>
+              <input v-model="userProfile.hard_constraints_text" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="如：不接受销售、不接受外包、不接受频繁出差" />
+            </label>
+          </div>
+        </section>
+
         <section v-if="viewState === 'input'" class="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div class="flex flex-col rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
             <div class="mb-4 flex items-center justify-between gap-3">
@@ -173,6 +229,25 @@
             <button class="text-xs font-semibold text-blue-600 hover:text-blue-700" @click="resetApp">重新检测新岗位</button>
           </div>
 
+          <div v-if="report.job_tier" class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Delivery Tier / 投递等级</p>
+                <div class="mt-2 flex flex-wrap items-center gap-3">
+                  <span :class="tierBadgeClass" class="inline-flex rounded-full border px-4 py-1.5 text-sm font-bold">
+                    {{ report.job_tier }}类：{{ report.tier_label || tierLabelFallback }}
+                  </span>
+                  <span v-if="!profileHasValues" class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">未填写画像，使用通用分档</span>
+                </div>
+              </div>
+              <p class="max-w-2xl text-sm leading-6 text-slate-600">{{ report.tier_reason }}</p>
+            </div>
+            <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <report-list title="命中的求职偏好" tone="good" :items="report.matched_preferences"></report-list>
+              <report-list title="触发的偏好冲突" tone="bad" :items="report.blocked_by_preferences"></report-list>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
             <div class="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-6 text-center shadow-sm lg:col-span-4">
               <div class="absolute -right-12 -top-12 h-28 w-28 rounded-full bg-blue-500/5 blur-xl"></div>
@@ -245,7 +320,8 @@
       const ADMIN_BYPASS_STORAGE_KEY = "resumatch.adminBypassToken";
       const STORAGE_KEYS = {
         resume: "resumatch.resumeText",
-        jd: "resumatch.jdText"
+        jd: "resumatch.jdText",
+        profile: "resumatch.userProfile"
       };
 
       const ReportList = {
@@ -313,6 +389,18 @@
             parseMessage: "",
             report: null,
             fallbackMarkdown: "",
+            profileCollapsed: false,
+            userProfile: {
+              target_roles_text: "",
+              acceptable_roles_text: "",
+              rejected_roles_text: "",
+              target_industries_text: "",
+              rejected_industries_text: "",
+              experience_preference: "",
+              salary_preference: "",
+              location_preference: "",
+              hard_constraints_text: ""
+            },
             limits: {
               resume: { min: 500, max: 4000 },
               jd: { min: 100, max: 3000 }
@@ -350,6 +438,21 @@
           interviewFocus() {
             return this.arrayItems(this.report?.interview_focus);
           },
+          profileHasValues() {
+            return Object.values(this.userProfile).some((value) => String(value || "").trim());
+          },
+          tierBadgeClass() {
+            const tier = String(this.report?.job_tier || "").toUpperCase();
+            if (tier === "A") return "border-emerald-100 bg-emerald-50 text-emerald-700";
+            if (tier === "B") return "border-amber-100 bg-amber-50 text-amber-700";
+            return "border-rose-100 bg-rose-50 text-rose-700";
+          },
+          tierLabelFallback() {
+            const tier = String(this.report?.job_tier || "").toUpperCase();
+            if (tier === "A") return "优先投递";
+            if (tier === "B") return "可以尝试";
+            return "暂不建议";
+          },
           fallbackHtml() {
             return this.renderMarkdownLite(this.fallbackMarkdown);
           }
@@ -360,11 +463,18 @@
           },
           jdText(value) {
             localStorage.setItem(STORAGE_KEYS.jd, value);
+          },
+          userProfile: {
+            deep: true,
+            handler(value) {
+              localStorage.setItem(STORAGE_KEYS.profile, JSON.stringify(value));
+            }
           }
         },
         mounted() {
           this.resumeText = localStorage.getItem(STORAGE_KEYS.resume) || "";
           this.jdText = localStorage.getItem(STORAGE_KEYS.jd) || "";
+          this.loadStoredProfile();
         },
         methods: {
           countText(value) {
@@ -373,6 +483,46 @@
           arrayItems(value) {
             if (!value) return [];
             return Array.isArray(value) ? value : [String(value)];
+          },
+          splitList(value) {
+            return String(value || "")
+              .split(/[,，、;\n]/)
+              .map((item) => item.trim())
+              .filter(Boolean);
+          },
+          buildUserProfile() {
+            return {
+              target_roles: this.splitList(this.userProfile.target_roles_text),
+              acceptable_roles: this.splitList(this.userProfile.acceptable_roles_text),
+              rejected_roles: this.splitList(this.userProfile.rejected_roles_text),
+              target_industries: this.splitList(this.userProfile.target_industries_text),
+              rejected_industries: this.splitList(this.userProfile.rejected_industries_text),
+              experience_preference: String(this.userProfile.experience_preference || "").trim(),
+              salary_preference: String(this.userProfile.salary_preference || "").trim(),
+              location_preference: String(this.userProfile.location_preference || "").trim(),
+              hard_constraints: this.splitList(this.userProfile.hard_constraints_text)
+            };
+          },
+          loadStoredProfile() {
+            try {
+              const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.profile) || "{}");
+              this.userProfile = { ...this.userProfile, ...stored };
+            } catch (error) {
+              localStorage.removeItem(STORAGE_KEYS.profile);
+            }
+          },
+          clearProfile() {
+            this.userProfile = {
+              target_roles_text: "",
+              acceptable_roles_text: "",
+              rejected_roles_text: "",
+              target_industries_text: "",
+              rejected_industries_text: "",
+              experience_preference: "",
+              salary_preference: "",
+              location_preference: "",
+              hard_constraints_text: ""
+            };
           },
           counterClass(count, min, max) {
             if (count === 0) return "text-slate-400";
@@ -469,6 +619,7 @@
                 body: JSON.stringify({
                   resume_text: this.resumeText.trim(),
                   jd_text: this.jdText.trim(),
+                  user_profile: this.buildUserProfile(),
                   turnstile_token: turnstileToken
                 })
               });

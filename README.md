@@ -1,6 +1,6 @@
 # ResuMatch / 简历全检官
 
-v2.1 简历与 JD 匹配评分版：用户上传简历文件并粘贴目标 JD，系统只做匹配度评分、风险诊断和面试追问预测，不提供简历改写或包装建议。
+v2.2 简历与 JD 匹配评分版：用户上传简历文件并粘贴目标 JD，系统只做匹配度评分、A/B/C 投递分档、风险诊断和面试追问预测，不提供简历改写或包装建议。
 
 ## 功能
 
@@ -8,8 +8,9 @@ v2.1 简历与 JD 匹配评分版：用户上传简历文件并粘贴目标 JD�
 - 旧版 `.doc` 文件提供文本粘贴降级入口。
 - 简历文本限制 `500-4000` 字，JD 文本限制 `100-3000` 字。
 - 固定调用官方 Worker 网关，用户零配置。
+- 用户可配置本地求职画像，用于判断 JD 属于 A 类、B 类还是 C 类。
 - Worker 执行 CORS、IP 频控、Turnstile 校验入口和 AI Secret 注入。
-- AI 返回 JSON 时渲染匹配分、总评、硬伤、匹配优势、能力缺口、投递风险和面试追问点。
+- AI 返回 JSON 时渲染投递等级、匹配分、总评、硬伤、匹配优势、能力缺口、投递风险和面试追问点。
 
 ## 已上线地址
 
@@ -21,6 +22,11 @@ v2.1 简历与 JD 匹配评分版：用户上传简历文件并粘贴目标 JD�
 ```json
 {
   "decision": "强匹配|可投递|谨慎投递|不建议投递",
+  "job_tier": "A|B|C",
+  "tier_label": "优先投递|可以尝试|暂不建议",
+  "tier_reason": "分档原因",
+  "matched_preferences": [],
+  "blocked_by_preferences": [],
   "match_score": 0,
   "summary": "总体匹配结论",
   "hard_flaws": [],
@@ -30,6 +36,26 @@ v2.1 简历与 JD 匹配评分版：用户上传简历文件并粘贴目标 JD�
   "interview_focus": []
 }
 ```
+
+## 用户画像
+
+第一版不做账号和云端数据库，画像只保存在浏览器 `localStorage`。点击检测时，前端会把画像随本次请求发送给 Worker，用于本次 A/B/C 分档。
+
+```json
+{
+  "target_roles": [],
+  "acceptable_roles": [],
+  "rejected_roles": [],
+  "target_industries": [],
+  "rejected_industries": [],
+  "experience_preference": "",
+  "salary_preference": "",
+  "location_preference": "",
+  "hard_constraints": []
+}
+```
+
+A 类代表优先投递，B 类代表可以尝试，C 类代表暂不建议。C 类优先由用户明确不考虑项或硬性底线触发。
 
 ## 部署
 

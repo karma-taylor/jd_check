@@ -13,11 +13,14 @@ const SYSTEM_PROMPT = `# Role
 2. 评估简历中已经能支撑 JD 要求的匹配点。
 3. 找出 JD 要求但简历证据不足的能力缺口。
 4. 预测面试官最可能追问的问题。
+5. 如果提供了 [用户求职画像]，请根据用户画像判断这份 JD 属于 A/B/C 哪一类；如果画像为空，则根据通用岗位匹配度做保守分档。
 
 # Rules
 - 只做匹配评分和风险诊断，不输出简历修改建议。
 - 不假设简历没有写出的经历。
 - 年限差距在 1 年以内且项目证据很强时，可以作为风险点，不必直接判为硬伤。
+- A/B/C 分档服务于“是否值得投递”，不能替代 match_score。
+- C 类优先由用户明确不考虑项或硬性底线触发；如果只是轻微不匹配，应给 B 类。
 - 输出必须稳定、严谨、可解析。
 
 # Output Format
@@ -25,6 +28,11 @@ const SYSTEM_PROMPT = `# Role
 Schema:
 {
   "decision": "强匹配|可投递|谨慎投递|不建议投递",
+  "job_tier": "A|B|C",
+  "tier_label": "优先投递|可以尝试|暂不建议",
+  "tier_reason": "不超过 100 字的分档原因",
+  "matched_preferences": ["命中的用户求职偏好，没有则返回空数组"],
+  "blocked_by_preferences": ["触发的用户不考虑项或硬性底线，没有则返回空数组"],
   "match_score": 0-100,
   "summary": "不超过 120 字的总体匹配结论",
   "hard_flaws": ["硬伤或一票否决项，没有则返回空数组"],
@@ -88,7 +96,8 @@ export default {
     }
 
     try {
-      const aiContent = await evaluateWithAi(resumeText, jdText, env);
+      const userProfile = normalizeUserProfile(payload.user_profile);
+      const aiContent = await evaluateWithAi(resumeText, jdText, userProfile, env);
       if (!isAdminBypass) {
         await Promise.all([incrementRateLimit(ip, env), incrementDailyAiLimit(env)]);
       }
@@ -211,11 +220,35 @@ function validatePayload(resumeText, jdText) {
   return "";
 }
 
+function normalizeUserProfile(value) {
+  const profile = value && typeof value === "object" ? value : {};
+  return {
+    target_roles: normalizeStringArray(profile.target_roles),
+    acceptable_roles: normalizeStringArray(profile.acceptable_roles),
+    rejected_roles: normalizeStringArray(profile.rejected_roles),
+    target_industries: normalizeStringArray(profile.target_industries),
+    rejected_industries: normalizeStringArray(profile.rejected_industries),
+    experience_preference: normalizeString(profile.experience_preference),
+    salary_preference: normalizeString(profile.salary_preference),
+    location_preference: normalizeString(profile.location_preference),
+    hard_constraints: normalizeStringArray(profile.hard_constraints)
+  };
+}
+
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => normalizeString(item)).filter(Boolean).slice(0, 20);
+}
+
+function normalizeString(value) {
+  return String(value || "").trim().slice(0, 200);
+}
+
 function countText(value) {
   return String(value || "").replace(/\s+/g, "").length;
 }
 
-async function evaluateWithAi(resumeText, jdText, env) {
+async function evaluateWithAi(resumeText, jdText, userProfile, env) {
   const provider = String(env.AI_PROVIDER || "deepseek").toLowerCase();
   const apiKey = env.AI_API_KEY;
   if (!apiKey) {
@@ -241,7 +274,7 @@ async function evaluateWithAi(resumeText, jdText, env) {
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `候选人简历：\n${resumeText}\n\n目标岗位 JD：\n${jdText}`
+          content: `用户求职画像：\n${JSON.stringify(userProfile, null, 2)}\n\n候选人简历：\n${resumeText}\n\n目标岗位 JD：\n${jdText}`
         }
       ]
     })
