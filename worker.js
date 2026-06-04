@@ -1,8 +1,13 @@
 const DEFAULT_ALLOWED_ORIGINS = [];
-const RATE_LIMIT_WINDOW_SECONDS = 24 * 60 * 60;
-const RATE_LIMIT_MAX = 10;
+const DAILY_KEY_TTL_SECONDS = 48 * 60 * 60;
+const DEFAULT_PER_IP_DAILY_LIMIT = 40;
 const MAX_BODY_BYTES = 128 * 1024;
-const DEFAULT_DAILY_AI_LIMIT = 40;
+const DEFAULT_DAILY_COST_LIMIT_CNY = 1;
+const DEFAULT_INPUT_CACHE_HIT_PRICE_CNY_PER_1M = 0.5;
+const DEFAULT_INPUT_CACHE_MISS_PRICE_CNY_PER_1M = 2;
+const DEFAULT_OUTPUT_PRICE_CNY_PER_1M = 8;
+const ESTIMATED_SYSTEM_PROMPT_TOKENS = 1800;
+const ESTIMATED_OUTPUT_TOKENS = 1200;
 
 const SYSTEM_PROMPT = `# Role
 你是一位拥有 10 年以上经验的大厂技术猎头兼研发主管。你只负责判断候选人简历与目标 JD 的匹配度，不改写简历，不提供包装话术，不鼓励夸大或造假。
@@ -111,26 +116,36 @@ export default {
 
     const isAdminBypass = isAdminBypassRequest(request, env);
     const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const userProfile = normalizeUserProfile(payload.user_profile);
+    const reportContext = normalizeReportContext(payload.report_context);
+    const userContent =
+      action === "greeting"
+        ? buildGreetingUserContent(resumeText, jdText, userProfile, reportContext)
+        : buildEvaluateUserContent(resumeText, jdText, userProfile);
+    const estimatedCostCny = estimateRequestCostCny(userContent);
+
     if (!isAdminBypass) {
       if (await isRateLimited(ip, env)) {
-        return json({ error: "今日检测次数已达上限，请 24 小时后再试。" }, 429, corsHeaders);
+        return json({ error: "今日该 IP 检测次数已达 40 次上限，请明天再试。" }, 429, corsHeaders);
       }
 
-      if (await isDailyAiLimited(env)) {
-        return json({ error: "今日全站 AI 检测额度已用完，请明天再试。" }, 429, corsHeaders);
+      if (await wouldExceedDailyCostLimit(env, estimatedCostCny)) {
+        return json({ error: "今日全站 AI 预算已接近 1 元上限，请明天再试。" }, 429, corsHeaders);
       }
     }
 
     try {
-      const userProfile = normalizeUserProfile(payload.user_profile);
-      const aiContent =
+      const aiResult =
         action === "greeting"
-          ? await generateGreetings(resumeText, jdText, userProfile, normalizeReportContext(payload.report_context), env)
-          : await evaluateWithAi(resumeText, jdText, userProfile, env);
+          ? await generateGreetings(userContent, env)
+          : await evaluateWithAi(userContent, env);
       if (!isAdminBypass) {
-        await Promise.all([incrementRateLimit(ip, env), incrementDailyAiLimit(env)]);
+        await Promise.all([
+          incrementRateLimit(ip, env),
+          incrementDailyCost(env, calculateUsageCostCny(aiResult.usage) || estimatedCostCny)
+        ]);
       }
-      return new Response(aiContent, {
+      return new Response(aiResult.content, {
         status: 200,
         headers: {
           ...corsHeaders,
@@ -196,45 +211,58 @@ async function verifyTurnstile(token, request, env) {
 
 async function isRateLimited(ip, env) {
   if (!env.RATE_LIMIT_KV) return false;
-  const current = Number((await env.RATE_LIMIT_KV.get(`rate:${ip}`)) || "0");
-  return current >= RATE_LIMIT_MAX;
+  const current = Number((await env.RATE_LIMIT_KV.get(getRateLimitKey(ip))) || "0");
+  return current >= getPerIpDailyLimit(env);
 }
 
 async function incrementRateLimit(ip, env) {
   if (!env.RATE_LIMIT_KV) return;
-  const key = `rate:${ip}`;
+  const key = getRateLimitKey(ip);
   const current = Number((await env.RATE_LIMIT_KV.get(key)) || "0");
   await env.RATE_LIMIT_KV.put(key, String(current + 1), {
-    expirationTtl: RATE_LIMIT_WINDOW_SECONDS
+    expirationTtl: DAILY_KEY_TTL_SECONDS
   });
 }
 
-async function isDailyAiLimited(env) {
+async function wouldExceedDailyCostLimit(env, estimatedCostCny) {
   if (!env.RATE_LIMIT_KV) return false;
-  const limit = getDailyAiLimit(env);
+  const limit = getDailyCostLimitCny(env);
   if (limit <= 0) return false;
-  const current = Number((await env.RATE_LIMIT_KV.get(getDailyAiKey())) || "0");
-  return current >= limit;
+  const current = Number((await env.RATE_LIMIT_KV.get(getDailyCostKey())) || "0");
+  return current + Math.max(estimatedCostCny, 0) > limit;
 }
 
-async function incrementDailyAiLimit(env) {
+async function incrementDailyCost(env, costCny) {
   if (!env.RATE_LIMIT_KV) return;
-  const limit = getDailyAiLimit(env);
+  const limit = getDailyCostLimitCny(env);
   if (limit <= 0) return;
-  const key = getDailyAiKey();
+  const key = getDailyCostKey();
   const current = Number((await env.RATE_LIMIT_KV.get(key)) || "0");
-  await env.RATE_LIMIT_KV.put(key, String(current + 1), {
-    expirationTtl: RATE_LIMIT_WINDOW_SECONDS + 60 * 60
+  await env.RATE_LIMIT_KV.put(key, String(roundMoney(current + Math.max(costCny, 0))), {
+    expirationTtl: DAILY_KEY_TTL_SECONDS
   });
 }
 
-function getDailyAiLimit(env) {
-  const limit = Number(env.DAILY_AI_LIMIT || DEFAULT_DAILY_AI_LIMIT);
-  return Number.isFinite(limit) ? limit : DEFAULT_DAILY_AI_LIMIT;
+function getPerIpDailyLimit(env) {
+  const limit = Number(env.PER_IP_DAILY_LIMIT || DEFAULT_PER_IP_DAILY_LIMIT);
+  return Number.isFinite(limit) ? limit : DEFAULT_PER_IP_DAILY_LIMIT;
 }
 
-function getDailyAiKey() {
-  return `daily-ai:${new Date().toISOString().slice(0, 10)}`;
+function getDailyCostLimitCny(env) {
+  const limit = Number(env.DAILY_COST_LIMIT_CNY || DEFAULT_DAILY_COST_LIMIT_CNY);
+  return Number.isFinite(limit) ? limit : DEFAULT_DAILY_COST_LIMIT_CNY;
+}
+
+function getRateLimitKey(ip) {
+  return `rate:${getTodayKey()}:${ip}`;
+}
+
+function getDailyCostKey() {
+  return `daily-cost-cny:${getTodayKey()}`;
+}
+
+function getTodayKey() {
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 function validatePayload(resumeText, jdText) {
@@ -287,20 +315,20 @@ function countText(value) {
   return String(value || "").replace(/\s+/g, "").length;
 }
 
-async function evaluateWithAi(resumeText, jdText, userProfile, env) {
-  return chatCompletion(
-    env,
-    SYSTEM_PROMPT,
-    `用户求职画像：\n${JSON.stringify(userProfile, null, 2)}\n\n候选人简历：\n${resumeText}\n\n目标岗位 JD：\n${jdText}`
-  );
+function buildEvaluateUserContent(resumeText, jdText, userProfile) {
+  return `用户求职画像：\n${JSON.stringify(userProfile, null, 2)}\n\n候选人简历：\n${resumeText}\n\n目标岗位 JD：\n${jdText}`;
 }
 
-async function generateGreetings(resumeText, jdText, userProfile, reportContext, env) {
-  return chatCompletion(
-    env,
-    GREETING_PROMPT,
-    `用户求职画像：\n${JSON.stringify(userProfile, null, 2)}\n\n已有匹配报告上下文：\n${JSON.stringify(reportContext, null, 2)}\n\n候选人简历：\n${resumeText}\n\n目标岗位 JD：\n${jdText}`
-  );
+function buildGreetingUserContent(resumeText, jdText, userProfile, reportContext) {
+  return `用户求职画像：\n${JSON.stringify(userProfile, null, 2)}\n\n已有匹配报告上下文：\n${JSON.stringify(reportContext, null, 2)}\n\n候选人简历：\n${resumeText}\n\n目标岗位 JD：\n${jdText}`;
+}
+
+async function evaluateWithAi(userContent, env) {
+  return chatCompletion(env, SYSTEM_PROMPT, userContent);
+}
+
+async function generateGreetings(userContent, env) {
+  return chatCompletion(env, GREETING_PROMPT, userContent);
 }
 
 async function chatCompletion(env, systemPrompt, userContent) {
@@ -338,7 +366,46 @@ async function chatCompletion(env, systemPrompt, userContent) {
   }
 
   const data = JSON.parse(raw);
-  return data.choices?.[0]?.message?.content || raw;
+  return {
+    content: data.choices?.[0]?.message?.content || raw,
+    usage: data.usage || null
+  };
+}
+
+function estimateRequestCostCny(userContent) {
+  const inputTokens = countText(userContent) + ESTIMATED_SYSTEM_PROMPT_TOKENS;
+  return calculateTokenCostCny({
+    prompt_cache_miss_tokens: inputTokens,
+    completion_tokens: ESTIMATED_OUTPUT_TOKENS
+  });
+}
+
+function calculateUsageCostCny(usage) {
+  if (!usage || typeof usage !== "object") return 0;
+  const promptTokens = Number(usage.prompt_tokens || 0);
+  const completionTokens = Number(usage.completion_tokens || 0);
+  const cacheHitTokens = Number(usage.prompt_cache_hit_tokens || 0);
+  const cacheMissTokens = Number(usage.prompt_cache_miss_tokens || Math.max(promptTokens - cacheHitTokens, 0));
+  if (!promptTokens && !completionTokens && !cacheHitTokens && !cacheMissTokens) return 0;
+  return calculateTokenCostCny({
+    prompt_cache_hit_tokens: cacheHitTokens,
+    prompt_cache_miss_tokens: cacheMissTokens,
+    completion_tokens: completionTokens
+  });
+}
+
+function calculateTokenCostCny(tokens) {
+  const hitPrice = DEFAULT_INPUT_CACHE_HIT_PRICE_CNY_PER_1M;
+  const missPrice = DEFAULT_INPUT_CACHE_MISS_PRICE_CNY_PER_1M;
+  const outputPrice = DEFAULT_OUTPUT_PRICE_CNY_PER_1M;
+  const hitCost = (Number(tokens.prompt_cache_hit_tokens || 0) * hitPrice) / 1_000_000;
+  const missCost = (Number(tokens.prompt_cache_miss_tokens || 0) * missPrice) / 1_000_000;
+  const outputCost = (Number(tokens.completion_tokens || 0) * outputPrice) / 1_000_000;
+  return roundMoney(hitCost + missCost + outputCost);
+}
+
+function roundMoney(value) {
+  return Math.round(Number(value || 0) * 1_000_000) / 1_000_000;
 }
 
 function json(body, status, headers = {}) {

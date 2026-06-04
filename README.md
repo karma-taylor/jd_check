@@ -85,7 +85,7 @@ Worker 返回：
 }
 ```
 
-打招呼语生成属于一次 AI 调用，受现有单 IP、全站每日上限和管理员绕过规则控制。
+打招呼语生成属于一次 AI 调用，受现有单 IP 每日次数、全站每日预算和管理员绕过规则控制。
 
 ## 部署
 
@@ -107,7 +107,8 @@ wrangler pages deploy <static-site-dir> --project-name=resumatch --branch=main -
 | `ALLOWED_ORIGINS` | 官方前端域名，多个域名用英文逗号分隔 |
 | `TURNSTILE_REQUIRED` | 是否强制 Turnstile，默认 `false` |
 | `TURNSTILE_SECRET_KEY` | Turnstile 服务端密钥，通过 secret 配置 |
-| `DAILY_AI_LIMIT` | 全站每日 AI 调用上限，默认 `40` |
+| `PER_IP_DAILY_LIMIT` | 单个 IP 每日 AI 调用上限，默认 `40` |
+| `DAILY_COST_LIMIT_CNY` | 全站每日 AI 预算上限，默认 `1` 元 |
 | `ADMIN_BYPASS_TOKEN` | 管理员测试绕过限流 token，通过 secret 配置 |
 
 开启 Turnstile 时，还需要把 `index.html` 里的 `TURNSTILE_SITE_KEY` 设置为 Cloudflare Turnstile 站点 Key，并执行：
@@ -116,7 +117,7 @@ wrangler pages deploy <static-site-dir> --project-name=resumatch --branch=main -
 wrangler secret put TURNSTILE_SECRET_KEY
 ```
 
-管理员测试期间如需绕过单 IP 和全站每日限流，先配置：
+管理员测试期间如需绕过单 IP 每日次数和全站每日预算，先配置：
 
 ```bash
 wrangler secret put ADMIN_BYPASS_TOKEN
@@ -136,8 +137,9 @@ localStorage.removeItem("resumatch.adminBypassToken")
 
 ## 成本控制
 
-- Worker KV 按 `CF-Connecting-IP` 做 24 小时 10 次限流。
-- Worker KV 按 UTC 日期做全站每日 AI 调用总上限，默认 `40` 次；达到上限后直接返回 `429`，不会继续请求 DeepSeek。
+- Worker KV 按北京时间日期和 `CF-Connecting-IP` 做单 IP 每日限流，默认每个 IP 每天 `40` 次。
+- Worker KV 按北京时间日期记录全站每日 AI 成本，默认预算 `1` 元；达到预算前会按保守估算拦截，成功调用后按 DeepSeek usage 记账。
+- 成本估算默认按 `deepseek-chat` 保守价格：缓存命中输入 0.5 元 / 100 万 tokens，缓存未命中输入 2 元 / 100 万 tokens，输出 8 元 / 100 万 tokens。
 - DeepSeek 后台应设置每日消费 Hard Limit，建议先设低预算灰度观察。
 
 ## 安全加固
