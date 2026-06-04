@@ -42,6 +42,28 @@ Schema:
   "interview_focus": ["面试官可能追问的问题"]
 }`;
 
+const GREETING_PROMPT = `# Role
+你是一位务实的求职沟通顾问，只负责生成候选人联系 HR 或招聘方时的简短打招呼语。
+
+# Task
+请根据候选人简历、目标 JD、用户求职画像和已有匹配报告，生成 3 条可选打招呼语。
+
+# Rules
+- 每条 40-80 个中文字符，适合 Boss、拉勾、猎聘等平台私信开场。
+- 语气必须朴实、直接、真诚、简洁。
+- 每条引用 1-2 个真实匹配点，只能来自简历、JD 或 report_context，不能编造经历。
+- 不使用夸张词或自我包装词，例如“非常优秀”“高度契合”“完美匹配”“强烈推荐自己”。
+- 不使用低姿态表达，例如“跪求”“打扰了”“给个机会”。
+- A 类可以稍主动；B 类保持克制，表达想进一步确认匹配度；C 类必须谨慎，不能强行说自己匹配。
+- 不输出简历改写建议，不输出解释文字。
+
+# Output Format
+你必须且只能输出一个标准 JSON 对象，不要包含任何前导、后导文本或 Markdown 代码块标记。
+Schema:
+{
+  "greetings": ["打招呼语 1", "打招呼语 2", "打招呼语 3"]
+}`;
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
@@ -78,9 +100,13 @@ export default {
 
     const resumeText = String(payload.resume_text || "").trim();
     const jdText = String(payload.jd_text || "").trim();
+    const action = String(payload.action || "evaluate").trim().toLowerCase();
     const validationError = validatePayload(resumeText, jdText);
     if (validationError) {
       return json({ error: validationError }, 400, corsHeaders);
+    }
+    if (!["evaluate", "greeting"].includes(action)) {
+      return json({ error: "不支持的 action。" }, 400, corsHeaders);
     }
 
     const isAdminBypass = isAdminBypassRequest(request, env);
@@ -97,7 +123,10 @@ export default {
 
     try {
       const userProfile = normalizeUserProfile(payload.user_profile);
-      const aiContent = await evaluateWithAi(resumeText, jdText, userProfile, env);
+      const aiContent =
+        action === "greeting"
+          ? await generateGreetings(resumeText, jdText, userProfile, normalizeReportContext(payload.report_context), env)
+          : await evaluateWithAi(resumeText, jdText, userProfile, env);
       if (!isAdminBypass) {
         await Promise.all([incrementRateLimit(ip, env), incrementDailyAiLimit(env)]);
       }
@@ -235,6 +264,16 @@ function normalizeUserProfile(value) {
   };
 }
 
+function normalizeReportContext(value) {
+  const context = value && typeof value === "object" ? value : {};
+  return {
+    job_tier: normalizeString(context.job_tier).toUpperCase().slice(0, 1),
+    matched_points: normalizeStringArray(context.matched_points).slice(0, 8),
+    missing_points: normalizeStringArray(context.missing_points).slice(0, 8),
+    risk_points: normalizeStringArray(context.risk_points).slice(0, 8)
+  };
+}
+
 function normalizeStringArray(value) {
   if (!Array.isArray(value)) return [];
   return value.map((item) => normalizeString(item)).filter(Boolean).slice(0, 20);
@@ -249,6 +288,22 @@ function countText(value) {
 }
 
 async function evaluateWithAi(resumeText, jdText, userProfile, env) {
+  return chatCompletion(
+    env,
+    SYSTEM_PROMPT,
+    `用户求职画像：\n${JSON.stringify(userProfile, null, 2)}\n\n候选人简历：\n${resumeText}\n\n目标岗位 JD：\n${jdText}`
+  );
+}
+
+async function generateGreetings(resumeText, jdText, userProfile, reportContext, env) {
+  return chatCompletion(
+    env,
+    GREETING_PROMPT,
+    `用户求职画像：\n${JSON.stringify(userProfile, null, 2)}\n\n已有匹配报告上下文：\n${JSON.stringify(reportContext, null, 2)}\n\n候选人简历：\n${resumeText}\n\n目标岗位 JD：\n${jdText}`
+  );
+}
+
+async function chatCompletion(env, systemPrompt, userContent) {
   const provider = String(env.AI_PROVIDER || "deepseek").toLowerCase();
   const apiKey = env.AI_API_KEY;
   if (!apiKey) {
@@ -271,11 +326,8 @@ async function evaluateWithAi(resumeText, jdText, userProfile, env) {
       temperature: 0.3,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `用户求职画像：\n${JSON.stringify(userProfile, null, 2)}\n\n候选人简历：\n${resumeText}\n\n目标岗位 JD：\n${jdText}`
-        }
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent }
       ]
     })
   });

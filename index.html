@@ -290,6 +290,42 @@
             <report-list title="可能被卡的地方" tone="warn" :items="missingPoints"></report-list>
           </div>
 
+          <div class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div class="flex items-center gap-2">
+                  <div class="h-4 w-2 rounded bg-blue-600"></div>
+                  <h3 class="text-sm font-bold tracking-wide text-slate-900">打招呼语</h3>
+                </div>
+                <p class="mt-2 text-xs leading-5 text-slate-500">单独生成 3 条，风格朴实、直接、真诚、简洁，不自动消耗额度。</p>
+                <p v-if="isCTier" class="mt-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                  该岗位被评为 C 类，建议谨慎联系。
+                </p>
+              </div>
+              <button
+                :disabled="isGreetingLoading"
+                @click="generateGreetings"
+                class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                <span v-if="isGreetingLoading" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700"></span>
+                {{ isGreetingLoading ? "正在生成" : greetings.length ? "重新生成打招呼语" : "生成打招呼语" }}
+              </button>
+            </div>
+
+            <p v-if="greetingError" class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{{ greetingError }}</p>
+
+            <div v-if="greetings.length" class="mt-5 grid grid-cols-1 gap-3">
+              <div v-for="(item, index) in greetings" :key="`${index}-${item}`" class="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                <p class="text-sm leading-7 text-slate-700">{{ item }}</p>
+                <div class="mt-3 flex justify-end">
+                  <button class="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-200 hover:text-blue-700" @click="copyGreeting(item, index)">
+                    {{ copiedGreetingIndex === index ? "已复制" : "复制" }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
             <report-list title="投递风险" tone="bad" :items="riskPoints"></report-list>
             <report-list title="面试追问点" tone="brand" :items="interviewFocus"></report-list>
@@ -385,9 +421,13 @@
             isDragging: false,
             isParsing: false,
             isLoading: false,
+            isGreetingLoading: false,
             errorMessage: "",
+            greetingError: "",
             parseMessage: "",
             report: null,
+            greetings: [],
+            copiedGreetingIndex: null,
             fallbackMarkdown: "",
             profileCollapsed: false,
             userProfile: {
@@ -437,6 +477,9 @@
           },
           interviewFocus() {
             return this.arrayItems(this.report?.interview_focus);
+          },
+          isCTier() {
+            return String(this.report?.job_tier || "").toUpperCase() === "C";
           },
           profileHasValues() {
             return Object.values(this.userProfile).some((value) => String(value || "").trim());
@@ -609,6 +652,9 @@
             this.isLoading = true;
             this.viewState = "loading";
             this.report = null;
+            this.greetings = [];
+            this.greetingError = "";
+            this.copiedGreetingIndex = null;
             this.fallbackMarkdown = "";
 
             try {
@@ -619,6 +665,7 @@
                 body: JSON.stringify({
                   resume_text: this.resumeText.trim(),
                   jd_text: this.jdText.trim(),
+                  action: "evaluate",
                   user_profile: this.buildUserProfile(),
                   turnstile_token: turnstileToken
                 })
@@ -634,6 +681,73 @@
               this.viewState = "input";
             } finally {
               this.isLoading = false;
+            }
+          },
+          async generateGreetings() {
+            if (!this.report) return;
+
+            this.isGreetingLoading = true;
+            this.greetingError = "";
+            this.copiedGreetingIndex = null;
+
+            try {
+              const turnstileToken = await this.getTurnstileToken();
+              const response = await fetch(API_ENDPOINT, {
+                method: "POST",
+                headers: this.buildRequestHeaders(),
+                body: JSON.stringify({
+                  action: "greeting",
+                  resume_text: this.resumeText.trim(),
+                  jd_text: this.jdText.trim(),
+                  user_profile: this.buildUserProfile(),
+                  report_context: {
+                    job_tier: String(this.report.job_tier || ""),
+                    matched_points: this.matchedPoints,
+                    missing_points: this.missingPoints,
+                    risk_points: this.riskPoints
+                  },
+                  turnstile_token: turnstileToken
+                })
+              });
+
+              const raw = await response.text();
+              if (!response.ok) {
+                throw new Error(this.extractError(raw) || `打招呼语生成失败：HTTP ${response.status}`);
+              }
+
+              const parsed = JSON.parse(this.stripJsonFence(raw));
+              const greetings = Array.isArray(parsed.greetings) ? parsed.greetings : [];
+              if (!greetings.length) {
+                throw new Error("AI 没有返回可用的打招呼语，请稍后重试。");
+              }
+              this.greetings = greetings.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 3);
+            } catch (error) {
+              this.greetingError = error.message || "打招呼语生成失败，请稍后重试。";
+            } finally {
+              this.isGreetingLoading = false;
+            }
+          },
+          async copyGreeting(text, index) {
+            try {
+              if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+              } else {
+                const textarea = document.createElement("textarea");
+                textarea.value = text;
+                textarea.setAttribute("readonly", "");
+                textarea.style.position = "fixed";
+                textarea.style.opacity = "0";
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textarea);
+              }
+              this.copiedGreetingIndex = index;
+              window.setTimeout(() => {
+                if (this.copiedGreetingIndex === index) this.copiedGreetingIndex = null;
+              }, 1800);
+            } catch (error) {
+              this.greetingError = "复制失败，请手动选中文字复制。";
             }
           },
           buildRequestHeaders() {
@@ -706,6 +820,9 @@
           resetApp() {
             this.viewState = "input";
             this.errorMessage = "";
+            this.greetingError = "";
+            this.greetings = [];
+            this.copiedGreetingIndex = null;
             this.fallbackMarkdown = "";
           },
           loadExample() {
