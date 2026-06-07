@@ -26,11 +26,38 @@
       };
     </script>
     <style>
+      :root {
+        --layout-gap: 64px;
+        --section-gap: 48px;
+        --card-padding: 24px;
+        --surface-warm: #f5f3ef;
+        --surface-soft: #f7f9fc;
+        --surface-white: #ffffff;
+        --text-primary: #27303f;
+        --text-secondary: #64748b;
+        --text-tertiary: #a3afbf;
+        --soft-shadow: 0 12px 36px rgba(15, 23, 42, 0.06);
+      }
       [v-cloak] {
         display: none;
       }
       .score-ring {
         background: conic-gradient(#2563eb var(--score-percent), #e2e8f0 0);
+      }
+      .report-aside {
+        background: var(--surface-warm);
+        padding: var(--card-padding);
+      }
+      .report-content {
+        background: var(--surface-white);
+      }
+      @media (min-width: 1024px) {
+        .report-grid {
+          column-gap: var(--layout-gap);
+        }
+        .report-content {
+          row-gap: var(--section-gap);
+        }
       }
     </style>
   </head>
@@ -218,94 +245,89 @@
           </div>
         </section>
 
-        <section v-if="viewState === 'report'" class="space-y-6">
-          <div class="flex flex-col gap-3 rounded-xl border border-slate-200/50 bg-slate-100/80 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span class="font-medium">当前分析：</span>
-              <span class="rounded border border-slate-200 bg-white px-2 py-0.5 font-semibold text-slate-700">{{ fileName || "手动输入的候选人简历" }}</span>
-              <span>对比</span>
-              <span class="rounded border border-slate-200 bg-white px-2 py-0.5 font-semibold text-slate-700">当前目标岗位 JD</span>
-            </div>
-            <button class="text-xs font-semibold text-blue-600 hover:text-blue-700" @click="resetApp">重新检测新岗位</button>
-          </div>
-
-          <div v-if="report.job_tier" class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <section v-if="viewState === 'report'" class="report-grid grid grid-cols-1 items-start gap-12 lg:grid-cols-12">
+          <aside class="report-aside rounded-lg lg:sticky lg:top-24 lg:col-span-4">
+            <div class="flex items-start justify-between gap-4">
               <div>
-                <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Delivery Tier / 投递等级</p>
-                <div class="mt-2 flex flex-wrap items-center gap-3">
-                  <span :class="tierBadgeClass" class="inline-flex rounded-full border px-4 py-1.5 text-sm font-bold">
-                    {{ report.job_tier }}类：{{ report.tier_label || tierLabelFallback }}
-                  </span>
-                  <span v-if="!profileHasValues" class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">未填写画像，使用通用分档</span>
-                </div>
+                <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Match Report</p>
+                <p class="mt-2 text-xs leading-5 text-slate-500">{{ fileName || "手动输入的候选人简历" }}</p>
               </div>
-              <p class="max-w-2xl text-sm leading-6 text-slate-600">{{ report.tier_reason }}</p>
+              <button class="text-xs font-semibold text-blue-600 hover:text-blue-700" @click="resetApp">重新检测</button>
             </div>
-            <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <report-list title="命中的求职偏好" tone="good" :items="report.matched_preferences"></report-list>
-              <report-list title="触发的偏好冲突" tone="bad" :items="report.blocked_by_preferences"></report-list>
-            </div>
-          </div>
 
-          <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <div class="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-6 text-center shadow-sm lg:col-span-4">
-              <div class="absolute -right-12 -top-12 h-28 w-28 rounded-full bg-blue-500/5 blur-xl"></div>
-              <span class="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-400">Match Score / 综合匹配度</span>
-              <div class="score-ring relative flex h-36 w-36 items-center justify-center rounded-full shadow-inner shadow-slate-100" :style="{ '--score-percent': normalizedScore + '%' }">
-                <div class="absolute inset-2 flex flex-col items-center justify-center rounded-full bg-white">
-                  <span class="text-4xl font-extrabold tracking-tight text-slate-900">{{ normalizedScore }}</span>
-                  <span class="text-xs font-medium text-slate-400">/ 100 分</span>
+            <div class="mt-10 flex flex-col items-center text-center">
+              <div class="score-ring relative flex h-40 w-40 items-center justify-center rounded-full" :style="{ '--score-percent': normalizedScore + '%' }">
+                <div class="absolute inset-2 flex flex-col items-center justify-center rounded-full bg-[#f5f3ef]">
+                  <span class="text-5xl font-bold text-slate-800">{{ normalizedScore }}</span>
+                  <span class="mt-1 text-[11px] font-medium text-slate-400">综合匹配度</span>
                 </div>
               </div>
-              <span :class="decisionBadgeClass" class="mt-6 inline-flex items-center rounded-full border px-4 py-1.5 text-sm font-bold shadow-sm">
+              <span :class="decisionBadgeClass" class="mt-6 inline-flex rounded-full px-4 py-2 text-sm font-bold">
                 冲锋指数：{{ report.decision || "待判断" }}
               </span>
             </div>
 
-            <div class="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm lg:col-span-8">
-              <div>
-                <div class="mb-3 flex items-center gap-2">
-                  <div class="h-4 w-2 rounded bg-blue-600"></div>
-                  <h3 class="text-sm font-bold tracking-wide text-slate-900">AI 评分总评</h3>
-                </div>
-                <p class="text-sm font-medium leading-7 text-slate-600">{{ report.summary }}</p>
-              </div>
-              <div v-if="arrayItems(report.hard_flaws).length" class="mt-4 flex items-start gap-3 rounded-xl border border-rose-100 bg-rose-50/70 p-4">
-                <div class="mt-0.5 rounded-lg bg-rose-100 p-1 text-rose-600">
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-                <div>
-                  <h4 class="text-xs font-bold text-rose-800">避坑红牌（注意卡死项）</h4>
-                  <p v-for="item in arrayItems(report.hard_flaws)" :key="item" class="mt-1 text-xs leading-relaxed text-rose-700">{{ item }}</p>
-                </div>
-              </div>
+            <div v-if="report.job_tier" class="mt-10 rounded-lg bg-white/60 p-5">
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">投递等级</p>
+              <p class="mt-2 text-2xl font-bold text-slate-800">{{ report.job_tier }} 类</p>
+              <p class="mt-1 text-sm font-semibold text-slate-600">{{ report.tier_label || tierLabelFallback }}</p>
+              <p class="mt-4 text-xs leading-6 text-slate-500">{{ report.tier_reason }}</p>
+              <p v-if="!profileHasValues" class="mt-3 text-[11px] text-slate-400">未填写画像，使用通用分档</p>
             </div>
-          </div>
 
-          <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <report-list title="你的简历亮点" tone="good" :items="matchedPoints"></report-list>
-            <report-list title="可能被卡的地方" tone="warn" :items="missingPoints"></report-list>
-          </div>
+            <div class="mt-10">
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">AI 评分总评</p>
+              <p class="mt-3 text-sm leading-7 text-slate-600">{{ report.summary }}</p>
+            </div>
 
-          <div class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div class="flex items-center gap-2">
-                  <div class="h-4 w-2 rounded bg-blue-600"></div>
-                  <h3 class="text-sm font-bold tracking-wide text-slate-900">打招呼语</h3>
-                </div>
-                <p class="mt-2 text-xs leading-5 text-slate-500">单独生成 3 条，风格朴实、直接、真诚、简洁，不自动消耗额度。</p>
-                <p v-if="isCTier" class="mt-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+            <div v-if="arrayItems(report.hard_flaws).length" class="mt-8 rounded-lg bg-rose-50/80 p-5">
+              <p class="text-xs font-bold text-rose-700">避坑红牌（注意卡死项）</p>
+              <p v-for="item in arrayItems(report.hard_flaws)" :key="item" class="mt-2 text-xs leading-6 text-rose-600">{{ item }}</p>
+            </div>
+          </aside>
+
+          <div class="report-content flex flex-col gap-12 lg:col-span-8">
+            <section v-if="report.job_tier && (arrayItems(report.matched_preferences).length || arrayItems(report.blocked_by_preferences).length)">
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Profile Alignment</p>
+              <h2 class="mt-2 text-2xl font-bold text-slate-800">求职画像命中情况</h2>
+              <div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+                <highlight-card icon="✓" title="命中的求职偏好" :description="arrayItems(report.matched_preferences).join('；') || '暂无明确命中项'" :tags="arrayItems(report.matched_preferences).slice(0, 3)" tone="good"></highlight-card>
+                <highlight-card icon="!" title="触发的偏好冲突" :description="arrayItems(report.blocked_by_preferences).join('；') || '未触发明确冲突'" :tags="arrayItems(report.blocked_by_preferences).slice(0, 3)" tone="bad"></highlight-card>
+              </div>
+            </section>
+
+            <section>
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Resume Highlights</p>
+              <h2 class="mt-2 text-2xl font-bold text-slate-800">你的简历亮点</h2>
+              <div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+                <highlight-card v-for="(item, index) in matchedPoints" :key="item" icon="✓" :title="`匹配亮点 ${String(index + 1).padStart(2, '0')}`" :description="item" :tags="[]" tone="good"></highlight-card>
+              </div>
+            </section>
+
+            <section>
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Risk Assessment</p>
+              <h2 class="mt-2 text-2xl font-bold text-slate-800">可能被卡的地方</h2>
+              <div class="mt-6 space-y-4">
+                <risk-indicator v-for="item in missingPoints" :key="item" :description="item" :risk-level="2"></risk-indicator>
+                <risk-indicator v-for="item in riskPoints" :key="item" :description="item" :risk-level="3"></risk-indicator>
+                <p v-if="!missingPoints.length && !riskPoints.length" class="text-sm text-slate-400">暂未识别到明显风险。</p>
+              </div>
+            </section>
+
+            <section class="rounded-lg bg-[#f7f9fc] p-6">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Greeting Message</p>
+                  <h2 class="mt-2 text-2xl font-bold text-slate-800">打招呼语</h2>
+                  <p class="mt-2 text-xs leading-5 text-slate-500">单独生成 3 条，风格朴实、直接、真诚、简洁，不自动消耗额度。</p>
+                <p v-if="isCTier" class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
                   该岗位被评为 C 类，建议谨慎联系。
                 </p>
               </div>
               <button
                 :disabled="isGreetingLoading"
                 @click="generateGreetings"
-                class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 <span v-if="isGreetingLoading" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700"></span>
                 {{ isGreetingLoading ? "正在生成" : greetings.length ? "重新生成打招呼语" : "生成打招呼语" }}
@@ -315,20 +337,24 @@
             <p v-if="greetingError" class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{{ greetingError }}</p>
 
             <div v-if="greetings.length" class="mt-5 grid grid-cols-1 gap-3">
-              <div v-for="(item, index) in greetings" :key="`${index}-${item}`" class="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+              <div v-for="(item, index) in greetings" :key="`${index}-${item}`" class="rounded-lg bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
                 <p class="text-sm leading-7 text-slate-700">{{ item }}</p>
                 <div class="mt-3 flex justify-end">
-                  <button class="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-200 hover:text-blue-700" @click="copyGreeting(item, index)">
+                  <button class="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-blue-50 hover:text-blue-700" @click="copyGreeting(item, index)">
                     {{ copiedGreetingIndex === index ? "已复制" : "复制" }}
                   </button>
                 </div>
               </div>
             </div>
-          </div>
+            </section>
 
-          <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <report-list title="投递风险" tone="bad" :items="riskPoints"></report-list>
-            <report-list title="面试追问点" tone="brand" :items="interviewFocus"></report-list>
+            <section>
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Interview Focus</p>
+              <h2 class="mt-2 text-2xl font-bold text-slate-800">面试追问点</h2>
+              <div class="mt-6 space-y-3">
+                <interview-node v-for="(item, index) in interviewFocus" :key="item" :index="index + 1" :description="item"></interview-node>
+              </div>
+            </section>
           </div>
         </section>
 
@@ -409,8 +435,72 @@
         `
       };
 
+      const HighlightCard = {
+        props: ["icon", "title", "description", "tags", "tone"],
+        computed: {
+          toneClasses() {
+            return {
+              good: { icon: "bg-emerald-100 text-emerald-700", card: "bg-emerald-50/50", tag: "bg-white text-emerald-700" },
+              bad: { icon: "bg-rose-100 text-rose-700", card: "bg-rose-50/50", tag: "bg-white text-rose-700" },
+              warn: { icon: "bg-amber-100 text-amber-700", card: "bg-amber-50/50", tag: "bg-white text-amber-700" }
+            }[this.tone] || { icon: "bg-blue-100 text-blue-700", card: "bg-blue-50/50", tag: "bg-white text-blue-700" };
+          },
+          safeTags() {
+            return Array.isArray(this.tags) ? this.tags.filter(Boolean) : [];
+          }
+        },
+        template: `
+          <article :class="toneClasses.card" class="rounded-lg p-6 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_36px_rgba(15,23,42,0.06)]">
+            <div :class="toneClasses.icon" class="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold">{{ icon }}</div>
+            <h3 class="mt-5 text-sm font-bold text-slate-800">{{ title }}</h3>
+            <p class="mt-3 text-xs leading-6 text-slate-600">{{ description }}</p>
+            <div v-if="safeTags.length" class="mt-4 flex flex-wrap gap-2">
+              <span v-for="tag in safeTags" :key="tag" :class="toneClasses.tag" class="rounded-full px-2.5 py-1 text-[10px] font-semibold">{{ tag }}</span>
+            </div>
+          </article>
+        `
+      };
+
+      const RiskIndicator = {
+        props: ["riskLevel", "description"],
+        computed: {
+          level() {
+            return Math.max(1, Math.min(3, Number(this.riskLevel) || 1));
+          },
+          label() {
+            return ["低风险", "中风险", "高风险"][this.level - 1];
+          },
+          activeClass() {
+            return ["bg-emerald-500", "bg-amber-500", "bg-rose-500"][this.level - 1];
+          }
+        },
+        template: `
+          <article class="rounded-lg bg-slate-50 p-5">
+            <div class="flex items-center justify-between gap-4">
+              <p class="text-sm leading-6 text-slate-600">{{ description }}</p>
+              <div class="shrink-0">
+                <div class="flex gap-1.5">
+                  <span v-for="index in 3" :key="index" :class="index <= level ? activeClass : 'bg-slate-200'" class="h-2.5 w-6 rounded-sm"></span>
+                </div>
+                <p class="mt-2 text-right text-[10px] font-semibold text-slate-400">{{ label }}</p>
+              </div>
+            </div>
+          </article>
+        `
+      };
+
+      const InterviewNode = {
+        props: ["index", "description"],
+        template: `
+          <article class="group flex items-start gap-5 rounded-lg bg-slate-50/70 p-5 transition duration-200 hover:bg-blue-50/60">
+            <span class="text-4xl font-bold leading-none text-slate-200 transition group-hover:text-blue-200">{{ String(index).padStart(2, "0") }}</span>
+            <p class="pt-1 text-sm leading-7 text-slate-600 transition group-hover:text-slate-800">{{ description }}</p>
+          </article>
+        `
+      };
+
       Vue.createApp({
-        components: { ReportList },
+        components: { ReportList, HighlightCard, RiskIndicator, InterviewNode },
         data() {
           return {
             viewState: "input",
