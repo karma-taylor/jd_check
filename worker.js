@@ -29,6 +29,8 @@ const SYSTEM_PROMPT = `# Role
 - resume_evidence 必须引用或忠实概括简历中真实存在的内容；找不到证据时必须返回空字符串。
 - transferable_evidence 只能使用简历中已有经历，不得包装成候选人未做过的行业经验。
 - interview_response 只能提供诚实回应思路，不得生成虚假经历或承诺。
+- requirement_id 和 risk_id 必须使用稳定、简短的 snake_case 英文标识，描述能力类别或风险类别，不得包含本次生成的自然语言措辞、序号或随机值。
+- 同一项能力或风险在不同简历版本中必须尽量复用同一个 ID，例如 ai_product_delivery、industry_experience_gap、quantified_results_gap。
 - 年限差距在 1 年以内且项目证据很强时，可以作为风险点，不必直接判为硬伤。
 - A/B/C 分档服务于“是否值得投递”，不能替代 match_score。
 - C 类优先由用户明确不考虑项或硬性底线触发；如果只是轻微不匹配，应给 B 类。
@@ -49,6 +51,7 @@ Schema:
   "hard_flaws": ["硬伤或一票否决项，没有则返回空数组"],
   "matched_points": [
     {
+      "requirement_id": "稳定的能力要求英文 ID",
       "point": "简历中已经能支撑 JD 的匹配结论",
       "resume_evidence": "简历中的真实证据",
       "jd_requirement": "对应的 JD 要求",
@@ -58,6 +61,8 @@ Schema:
   ],
   "risk_points": [
     {
+      "risk_id": "稳定的风险英文 ID",
+      "requirement_id": "该风险对应的能力要求英文 ID",
       "risk": "投递、初筛或面试中的风险",
       "risk_type": "expression_gap|capability_gap|preference_conflict",
       "reason": "判断该风险的依据",

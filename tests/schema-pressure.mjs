@@ -49,16 +49,19 @@ function assertReport(report, index) {
   if (!Array.isArray(report.improvement_path)) errors.push("improvement_path");
   for (const point of report.matched_points || []) {
     if (!point || typeof point !== "object") errors.push("matched_point_object");
-    for (const key of ["point", "resume_evidence", "jd_requirement", "evidence_strength", "evidence_gap"]) {
+    for (const key of ["requirement_id", "point", "resume_evidence", "jd_requirement", "evidence_strength", "evidence_gap"]) {
       if (!(key in (point || {}))) errors.push(`matched_point.${key}`);
     }
+    if (!/^[a-z0-9_]+$/.test(point?.requirement_id || "")) errors.push("matched_point.requirement_id_format");
   }
   for (const risk of report.risk_points || []) {
     if (!risk || typeof risk !== "object") errors.push("risk_object");
     if (!["expression_gap", "capability_gap", "preference_conflict"].includes(risk?.risk_type)) errors.push("risk_type");
-    for (const key of ["risk", "reason", "resume_evidence", "transferable_evidence", "interview_response", "evidence_to_prepare", "risk_level"]) {
+    for (const key of ["risk_id", "requirement_id", "risk", "reason", "resume_evidence", "transferable_evidence", "interview_response", "evidence_to_prepare", "risk_level"]) {
       if (!(key in (risk || {}))) errors.push(`risk.${key}`);
     }
+    if (!/^[a-z0-9_]+$/.test(risk?.risk_id || "")) errors.push("risk.risk_id_format");
+    if (!/^[a-z0-9_]+$/.test(risk?.requirement_id || "")) errors.push("risk.requirement_id_format");
   }
   if (errors.length) throw new Error(`样本 ${index + 1} Schema 异常：${[...new Set(errors)].join(", ")}`);
 }

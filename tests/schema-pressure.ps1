@@ -67,7 +67,15 @@ for ($index = 0; $index -lt $scenarios.Count; $index += 1) {
   if ($null -eq $report.matched_points) { throw "样本 $($index + 1) matched_points 缺失" }
   if ($null -eq $report.risk_points) { throw "样本 $($index + 1) risk_points 缺失" }
   if ($null -eq $report.improvement_path) { throw "样本 $($index + 1) improvement_path 缺失" }
+  foreach ($point in $report.matched_points) {
+    if (-not $point.requirement_id) { throw "样本 $($index + 1) requirement_id 缺失" }
+    if ($point.requirement_id -notmatch "^[a-z0-9_]+$") { throw "样本 $($index + 1) requirement_id 格式异常" }
+  }
   foreach ($risk in $report.risk_points) {
+    if (-not $risk.risk_id) { throw "样本 $($index + 1) risk_id 缺失" }
+    if (-not $risk.requirement_id) { throw "样本 $($index + 1) risk requirement_id 缺失" }
+    if ($risk.risk_id -notmatch "^[a-z0-9_]+$") { throw "样本 $($index + 1) risk_id 格式异常" }
+    if ($risk.requirement_id -notmatch "^[a-z0-9_]+$") { throw "样本 $($index + 1) risk requirement_id 格式异常" }
     if ($risk.risk_type -notin @("expression_gap", "capability_gap", "preference_conflict")) {
       throw "样本 $($index + 1) risk_type 异常：$($risk.risk_type)"
     }

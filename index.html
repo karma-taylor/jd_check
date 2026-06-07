@@ -44,6 +44,15 @@
       .score-ring {
         background: conic-gradient(#2563eb var(--score-percent), #e2e8f0 0);
       }
+      .skeleton-pulse {
+        background: linear-gradient(90deg, #eef2f7 25%, #f8fafc 50%, #eef2f7 75%);
+        background-size: 200% 100%;
+        animation: skeleton-shimmer 1.5s ease-in-out infinite;
+      }
+      @keyframes skeleton-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
       .report-aside {
         background: var(--surface-warm);
         padding: var(--card-padding);
@@ -234,14 +243,43 @@
           </button>
         </div>
 
-        <section v-if="viewState === 'loading'" class="flex flex-col items-center justify-center gap-4 py-16">
-          <div class="relative h-16 w-16">
-            <div class="absolute inset-0 rounded-full border-4 border-slate-100"></div>
-            <div class="absolute inset-0 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+        <section v-if="viewState === 'loading'" class="py-6">
+          <div class="mb-8 flex items-center gap-4 rounded-lg bg-blue-50 px-5 py-4">
+            <span class="relative flex h-3 w-3 shrink-0">
+              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-60"></span>
+              <span class="relative inline-flex h-3 w-3 rounded-full bg-blue-600"></span>
+            </span>
+            <div>
+              <p class="text-sm font-bold text-slate-700">{{ loadingStage.title }}</p>
+              <p class="mt-1 text-xs text-slate-500">{{ loadingStage.description }}</p>
+            </div>
           </div>
-          <div class="text-center">
-            <p class="text-sm font-semibold text-slate-700">AI 正在评估简历与 JD 的匹配度...</p>
-            <p class="mt-1 text-xs text-slate-400">正在检查硬伤、匹配优势、能力缺口与面试追问点</p>
+          <div class="report-grid grid grid-cols-1 items-start gap-12 lg:grid-cols-12">
+            <div class="rounded-lg bg-[#f5f3ef] p-6 lg:col-span-4">
+              <div class="skeleton-pulse h-3 w-24 rounded"></div>
+              <div class="mt-10 flex justify-center"><div class="skeleton-pulse h-40 w-40 rounded-full"></div></div>
+              <div class="skeleton-pulse mx-auto mt-6 h-9 w-36 rounded-full"></div>
+              <div class="mt-10 rounded-lg bg-white/60 p-5">
+                <div class="skeleton-pulse h-3 w-20 rounded"></div>
+                <div class="skeleton-pulse mt-4 h-7 w-28 rounded"></div>
+                <div class="skeleton-pulse mt-5 h-3 w-full rounded"></div>
+                <div class="skeleton-pulse mt-2 h-3 w-4/5 rounded"></div>
+              </div>
+            </div>
+            <div class="space-y-12 lg:col-span-8">
+              <div v-for="block in 3" :key="block">
+                <div class="skeleton-pulse h-3 w-28 rounded"></div>
+                <div class="skeleton-pulse mt-3 h-7 w-44 rounded"></div>
+                <div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div v-for="card in 2" :key="card" class="rounded-lg bg-slate-50 p-6">
+                    <div class="skeleton-pulse h-10 w-10 rounded-lg"></div>
+                    <div class="skeleton-pulse mt-5 h-4 w-3/5 rounded"></div>
+                    <div class="skeleton-pulse mt-4 h-3 w-full rounded"></div>
+                    <div class="skeleton-pulse mt-2 h-3 w-4/5 rounded"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -287,6 +325,33 @@
           </aside>
 
           <div class="report-content flex flex-col gap-12 lg:col-span-8">
+            <section v-if="versionDiff" class="rounded-lg bg-blue-50/70 p-6">
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-blue-500">Version Diff</p>
+              <div class="mt-2 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 class="text-2xl font-bold text-slate-800">本次调整带来的变化</h2>
+                  <p class="mt-2 text-xs text-slate-500">与同一 JD 的上一个检测版本对比，按稳定 ID 识别变化。</p>
+                </div>
+                <span class="rounded-full bg-white px-3 py-1.5 text-xs font-bold" :class="versionDiff.scoreDelta >= 0 ? 'text-emerald-700' : 'text-rose-700'">
+                  分数 {{ versionDiff.scoreDelta >= 0 ? '+' : '' }}{{ versionDiff.scoreDelta }}
+                </span>
+              </div>
+              <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div class="rounded-lg bg-white p-4">
+                  <p class="text-xs font-bold text-emerald-700">新增匹配点 {{ versionDiff.addedMatches.length }}</p>
+                  <p class="mt-2 text-[11px] leading-5 text-slate-500">{{ versionDiff.addedMatches.join('；') || '暂无新增匹配点' }}</p>
+                </div>
+                <div class="rounded-lg bg-white p-4">
+                  <p class="text-xs font-bold text-emerald-700">已消除风险 {{ versionDiff.resolvedRisks.length }}</p>
+                  <p class="mt-2 text-[11px] leading-5 text-slate-500">{{ versionDiff.resolvedRisks.join('；') || '暂无已消除风险' }}</p>
+                </div>
+                <div class="rounded-lg bg-white p-4">
+                  <p class="text-xs font-bold text-blue-700">风险等级下降 {{ versionDiff.downgradedRisks.length }}</p>
+                  <p class="mt-2 text-[11px] leading-5 text-slate-500">{{ versionDiff.downgradedRisks.join('；') || '暂无风险降级项' }}</p>
+                </div>
+              </div>
+            </section>
+
             <section v-if="report.job_tier && (arrayItems(report.matched_preferences).length || arrayItems(report.blocked_by_preferences).length)">
               <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Profile Alignment</p>
               <h2 class="mt-2 text-2xl font-bold text-slate-800">求职画像命中情况</h2>
@@ -300,7 +365,7 @@
               <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Resume Highlights</p>
               <h2 class="mt-2 text-2xl font-bold text-slate-800">你的简历亮点</h2>
               <div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-                <evidence-card v-for="(item, index) in matchedPointDetails" :key="`${index}-${item.point}`" :index="index + 1" :item="item"></evidence-card>
+                <evidence-card v-for="(item, index) in matchedPointDetails" :key="`${index}-${item.point}`" :index="index + 1" :item="item" @add-todo="addTodo"></evidence-card>
               </div>
             </section>
 
@@ -309,7 +374,7 @@
               <h2 class="mt-2 text-2xl font-bold text-slate-800">可能被卡的地方</h2>
               <p class="mt-2 text-xs leading-5 text-slate-500">点击风险项，查看判断依据、可迁移能力、诚实回应思路和需要准备的证据。</p>
               <div class="mt-6 space-y-4">
-                <risk-accordion v-for="(item, index) in riskDetails" :key="`${index}-${item.risk}`" :item="item"></risk-accordion>
+                <risk-accordion v-for="(item, index) in riskDetails" :key="`${index}-${item.risk}`" :item="item" @copy-text="copyActionText" @add-todo="addTodo"></risk-accordion>
                 <p v-if="!riskDetails.length" class="text-sm text-slate-400">暂未识别到明显风险。</p>
               </div>
             </section>
@@ -330,6 +395,28 @@
                 <p v-if="!improvementPath.length" class="text-sm text-slate-400">当前没有需要优先补充的证据项。</p>
               </div>
               <p class="mt-6 text-xs italic leading-6 text-slate-500">补充真实证据后，系统可重新评估匹配度。最终表现取决于您补充的真实经历，不承诺固定提分结果。</p>
+            </section>
+
+            <section class="rounded-lg bg-slate-50 p-6">
+              <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Preparation Todo</p>
+                  <h2 class="mt-2 text-2xl font-bold text-slate-800">我的准备清单</h2>
+                  <p class="mt-2 text-xs text-slate-500">清单只保存在当前浏览器，可逐项完成。</p>
+                </div>
+                <button v-if="todoItems.length" @click="clearCompletedTodos" class="min-h-11 rounded-lg bg-white px-4 text-xs font-semibold text-slate-500 hover:text-rose-600">清除已完成</button>
+              </div>
+              <div class="mt-6 space-y-3">
+                <label v-for="todo in todoItems" :key="todo.id" class="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg bg-white p-4">
+                  <input v-model="todo.done" type="checkbox" class="mt-1 h-4 w-4 accent-blue-600" />
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-sm leading-6" :class="todo.done ? 'text-slate-400 line-through' : 'text-slate-700'">{{ todo.text }}</span>
+                    <span class="mt-1 block text-[10px] font-semibold text-slate-400">{{ todo.source }}</span>
+                  </span>
+                  <button type="button" @click.prevent="removeTodo(todo.id)" class="min-h-11 min-w-11 rounded-lg text-xs text-slate-400 hover:bg-rose-50 hover:text-rose-600">移除</button>
+                </label>
+                <p v-if="!todoItems.length" class="text-sm text-slate-400">展开风险或亮点后，可将准备项加入这里。</p>
+              </div>
             </section>
 
             <section class="rounded-lg bg-[#f7f9fc] p-6">
@@ -408,7 +495,9 @@
       const STORAGE_KEYS = {
         resume: "resumatch.resumeText",
         jd: "resumatch.jdText",
-        profile: "resumatch.userProfile"
+        profile: "resumatch.userProfile",
+        todos: "resumatch.preparationTodos",
+        history: "resumatch.reportHistory"
       };
 
       const ReportList = {
@@ -532,6 +621,7 @@
                   <div v-if="item.evidence_gap">
                     <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">强化方向</p>
                     <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.evidence_gap }}</p>
+                    <button @click="$emit('add-todo', { text: item.evidence_gap, source: '匹配亮点强化' })" class="mt-3 min-h-11 rounded-lg bg-blue-50 px-4 text-xs font-semibold text-blue-700 hover:bg-blue-100">加入准备清单</button>
                   </div>
                 </div>
               </div>
@@ -592,10 +682,12 @@
                   <div>
                     <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">面试回应思路</p>
                     <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.interview_response || "诚实说明经验边界，并准备相关真实案例。" }}</p>
+                    <button @click="$emit('copy-text', item.interview_response || '诚实说明经验边界，并准备相关真实案例。')" class="mt-3 min-h-11 rounded-lg bg-slate-100 px-4 text-xs font-semibold text-slate-600 hover:bg-blue-50 hover:text-blue-700">复制回应思路</button>
                   </div>
                   <div class="md:col-span-2">
                     <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">需要准备的真实证据</p>
                     <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.evidence_to_prepare || "根据实际经历准备可核验案例。" }}</p>
+                    <button @click="$emit('add-todo', { text: item.evidence_to_prepare || '根据实际经历准备可核验案例。', source: item.risk })" class="mt-3 min-h-11 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">加入准备清单</button>
                   </div>
                 </div>
               </div>
@@ -661,6 +753,11 @@
             report: null,
             greetings: [],
             copiedGreetingIndex: null,
+            loadingStageIndex: 0,
+            loadingStageTimer: null,
+            todoItems: [],
+            reportHistory: [],
+            versionDiff: null,
             fallbackMarkdown: "",
             profileCollapsed: false,
             userProfile: {
@@ -691,6 +788,14 @@
             const score = Number(this.report?.match_score ?? 0);
             return Math.max(0, Math.min(100, Math.round(score)));
           },
+          loadingStage() {
+            return [
+              { title: "正在提取过往项目经历...", description: "识别简历中的职责、项目结果与真实能力证据。" },
+              { title: "正在比对 JD 核心要求...", description: "检查岗位门槛、能力要求与求职偏好。" },
+              { title: "正在区分表达不足与真实缺口...", description: "避免把未写出的经历误判为候选人已经做过。" },
+              { title: "正在整理匹配提升路径...", description: "生成风险回应思路与需要准备的真实证据。" }
+            ][this.loadingStageIndex] || { title: "正在生成报告...", description: "请稍候。" };
+          },
           decisionBadgeClass() {
             const text = String(this.report?.decision || "");
             if (/强匹配|可投递/.test(text) && !/谨慎|不建议/.test(text)) {
@@ -707,6 +812,7 @@
               if (item && typeof item === "object") {
                 return {
                   point: String(item.point || "未命名匹配点"),
+                  requirement_id: String(item.requirement_id || this.stableId(item.point || "match")),
                   resume_evidence: String(item.resume_evidence || ""),
                   jd_requirement: String(item.jd_requirement || ""),
                   evidence_strength: String(item.evidence_strength || "medium"),
@@ -715,6 +821,7 @@
               }
               return {
                 point: String(item),
+                requirement_id: this.stableId(item),
                 resume_evidence: "",
                 jd_requirement: "",
                 evidence_strength: "medium",
@@ -734,6 +841,8 @@
               if (item && typeof item === "object") {
                 return {
                   risk: String(item.risk || "未命名风险"),
+                  risk_id: String(item.risk_id || this.stableId(item.risk || "risk")),
+                  requirement_id: String(item.requirement_id || ""),
                   risk_type: String(item.risk_type || "capability_gap"),
                   reason: String(item.reason || ""),
                   resume_evidence: String(item.resume_evidence || ""),
@@ -745,6 +854,8 @@
               }
               return {
                 risk: String(item),
+                risk_id: this.stableId(item),
+                requirement_id: "",
                 risk_type: "capability_gap",
                 reason: "",
                 resume_evidence: "",
@@ -814,14 +925,109 @@
             handler(value) {
               localStorage.setItem(STORAGE_KEYS.profile, JSON.stringify(value));
             }
+          },
+          todoItems: {
+            deep: true,
+            handler(value) {
+              localStorage.setItem(STORAGE_KEYS.todos, JSON.stringify(value));
+            }
           }
         },
         mounted() {
           this.resumeText = localStorage.getItem(STORAGE_KEYS.resume) || "";
           this.jdText = localStorage.getItem(STORAGE_KEYS.jd) || "";
           this.loadStoredProfile();
+          this.todoItems = this.readStoredArray(STORAGE_KEYS.todos);
+          this.reportHistory = this.readStoredArray(STORAGE_KEYS.history);
         },
         methods: {
+          readStoredArray(key) {
+            try {
+              const value = JSON.parse(localStorage.getItem(key) || "[]");
+              return Array.isArray(value) ? value : [];
+            } catch (error) {
+              localStorage.removeItem(key);
+              return [];
+            }
+          },
+          stableId(value) {
+            const text = String(value || "").trim().toLowerCase();
+            let hash = 2166136261;
+            for (let index = 0; index < text.length; index += 1) {
+              hash ^= text.charCodeAt(index);
+              hash = Math.imul(hash, 16777619);
+            }
+            return `legacy_${(hash >>> 0).toString(36)}`;
+          },
+          startLoadingStages() {
+            this.stopLoadingStages();
+            this.loadingStageIndex = 0;
+            this.loadingStageTimer = window.setInterval(() => {
+              this.loadingStageIndex = Math.min(this.loadingStageIndex + 1, 3);
+            }, 3000);
+          },
+          stopLoadingStages() {
+            if (this.loadingStageTimer) {
+              window.clearInterval(this.loadingStageTimer);
+              this.loadingStageTimer = null;
+            }
+          },
+          addTodo(payload) {
+            const text = String(payload?.text || "").trim();
+            if (!text) return;
+            if (this.todoItems.some((item) => item.text === text)) return;
+            this.todoItems.unshift({
+              id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              text,
+              source: String(payload?.source || "分析报告"),
+              done: false,
+              created_at: new Date().toISOString()
+            });
+          },
+          removeTodo(id) {
+            this.todoItems = this.todoItems.filter((item) => item.id !== id);
+          },
+          clearCompletedTodos() {
+            this.todoItems = this.todoItems.filter((item) => !item.done);
+          },
+          async copyActionText(text) {
+            try {
+              await navigator.clipboard.writeText(String(text || ""));
+            } catch (error) {
+              this.greetingError = "复制失败，请手动选中文字复制。";
+            }
+          },
+          fingerprint(value) {
+            return this.stableId(String(value || "").replace(/\s+/g, ""));
+          },
+          buildVersionDiff(previous, current) {
+            if (!previous || !current) return null;
+            const previousMatches = new Map(this.arrayItems(previous.matched_points).map((item) => [String(item?.requirement_id || this.stableId(item?.point || item)), String(item?.point || item)]));
+            const currentMatches = new Map(this.arrayItems(current.matched_points).map((item) => [String(item?.requirement_id || this.stableId(item?.point || item)), String(item?.point || item)]));
+            const previousRisks = new Map(this.arrayItems(previous.risk_points).map((item) => [String(item?.risk_id || this.stableId(item?.risk || item)), item]));
+            const currentRisks = new Map(this.arrayItems(current.risk_points).map((item) => [String(item?.risk_id || this.stableId(item?.risk || item)), item]));
+            const addedMatches = [...currentMatches].filter(([id]) => !previousMatches.has(id)).map(([, label]) => label);
+            const resolvedRisks = [...previousRisks].filter(([id]) => !currentRisks.has(id)).map(([, item]) => String(item?.risk || item));
+            const downgradedRisks = [...currentRisks]
+              .filter(([id, item]) => previousRisks.has(id) && Number(item?.risk_level || 2) < Number(previousRisks.get(id)?.risk_level || 2))
+              .map(([, item]) => String(item?.risk || item));
+            const scoreDelta = Math.round(Number(current.match_score || 0) - Number(previous.match_score || 0));
+            if (!addedMatches.length && !resolvedRisks.length && !downgradedRisks.length && scoreDelta === 0) return null;
+            return { addedMatches, resolvedRisks, downgradedRisks, scoreDelta };
+          },
+          saveReportHistory(report) {
+            const jdFingerprint = this.fingerprint(this.jdText);
+            const previous = [...this.reportHistory].reverse().find((item) => item.jd_fingerprint === jdFingerprint);
+            this.versionDiff = previous ? this.buildVersionDiff(previous.report, report) : null;
+            this.reportHistory.push({
+              created_at: new Date().toISOString(),
+              jd_fingerprint: jdFingerprint,
+              resume_fingerprint: this.fingerprint(this.resumeText),
+              report
+            });
+            this.reportHistory = this.reportHistory.slice(-10);
+            localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(this.reportHistory));
+          },
           countText(value) {
             return String(value || "").replace(/\s+/g, "").length;
           },
@@ -952,8 +1158,10 @@
             }
 
             this.isLoading = true;
+            this.startLoadingStages();
             this.viewState = "loading";
             this.report = null;
+            this.versionDiff = null;
             this.greetings = [];
             this.greetingError = "";
             this.copiedGreetingIndex = null;
@@ -983,6 +1191,7 @@
               this.viewState = "input";
             } finally {
               this.isLoading = false;
+              this.stopLoadingStages();
             }
           },
           async generateGreetings() {
@@ -1081,6 +1290,9 @@
               "三、匹配提升路径",
               ...this.improvementPath.map((item, index) => `${index + 1}. ${item.action}${item.impact_area ? `（影响：${item.impact_area}）` : ""}`),
               "",
+              "四、我的准备清单",
+              ...this.todoItems.map((item, index) => `${index + 1}. [${item.done ? "已完成" : "待准备"}] ${item.text}（来源：${item.source}）`),
+              "",
               "说明：补充真实证据后可重新评估匹配度，最终表现取决于真实经历，不承诺固定提分结果。"
             ];
             const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
@@ -1125,6 +1337,7 @@
             try {
               const parsed = JSON.parse(cleaned);
               this.report = typeof parsed.content === "string" ? JSON.parse(this.stripJsonFence(parsed.content)) : parsed;
+              this.saveReportHistory(this.report);
               this.viewState = "report";
             } catch (error) {
               this.fallbackMarkdown = raw;
@@ -1162,6 +1375,7 @@
           },
           resetApp() {
             this.viewState = "input";
+            this.stopLoadingStages();
             this.errorMessage = "";
             this.greetingError = "";
             this.greetings = [];

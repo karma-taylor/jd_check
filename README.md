@@ -1,6 +1,6 @@
 # ResuMatch / 简历全检官
 
-v2.4 白盒匹配分析版：用户上传简历文件并粘贴目标 JD，系统提供匹配度评分、A/B/C 投递分档、亮点证据溯源、风险回应准备、匹配提升路径和朴实打招呼语，不提供虚假经历包装。
+v2.5 持续准备工作台版：用户上传简历文件并粘贴目标 JD，系统提供阶段式分析反馈、匹配度评分、证据溯源、风险回应准备、本地待办清单、版本 Diff 和朴实打招呼语，不提供虚假经历包装。
 
 ## 功能
 
@@ -15,6 +15,9 @@ v2.4 白盒匹配分析版：用户上传简历文件并粘贴目标 JD，系统
 - 风险项支持手风琴展开，提供风险依据、可迁移能力、诚实回应思路和需要准备的真实证据。
 - 匹配提升路径只提示可补充的真实证据，不承诺虚假的精确提分结果。
 - 支持导出求职准备清单，承接用户后续面试和材料准备动作。
+- 检测期间展示可信阶段文案和报告骨架屏，降低长任务等待焦虑。
+- 风险回应思路和真实证据准备项支持复制或加入本地待办清单。
+- 最近 10 次报告保存在浏览器本地；同一 JD 重新检测时按稳定 ID 展示新增匹配点、已消除风险和风险降级项。
 - 报告生成后可单独点击“生成打招呼语”，一次返回 3 条朴实、直接、真诚、简洁的 HR 私信开场白。
 
 ## 已上线地址
@@ -37,6 +40,7 @@ v2.4 白盒匹配分析版：用户上传简历文件并粘贴目标 JD，系统
   "hard_flaws": [],
   "matched_points": [
     {
+      "requirement_id": "ai_product_delivery",
       "point": "匹配结论",
       "resume_evidence": "简历真实证据",
       "jd_requirement": "对应 JD 要求",
@@ -46,6 +50,8 @@ v2.4 白盒匹配分析版：用户上传简历文件并粘贴目标 JD，系统
   ],
   "risk_points": [
     {
+      "risk_id": "industry_experience_gap",
+      "requirement_id": "industry_experience",
       "risk": "风险",
       "risk_type": "expression_gap|capability_gap|preference_conflict",
       "reason": "判断依据",
@@ -62,6 +68,14 @@ v2.4 白盒匹配分析版：用户上传简历文件并粘贴目标 JD，系统
 ```
 
 `expression_gap` 仅允许用于“简历已有相邻或部分证据，但缺少范围、数字、结果或职责边界”的情况。简历完全没有支撑证据时，必须返回 `capability_gap`。
+
+`requirement_id` 和 `risk_id` 使用稳定 snake_case 英文标识。前端不依赖模型每次生成的自然语言措辞，而是按稳定 ID 完成版本 Diff。
+
+## 本地状态
+
+- 准备清单保存在 `localStorage` 的 `resumatch.preparationTodos`。
+- 最近 10 次报告保存在 `localStorage` 的 `resumatch.reportHistory`。
+- 历史报告只用于同一浏览器内的版本 Diff，不上传云端。
 
 ## 用户画像
 
@@ -131,7 +145,7 @@ Invoke-Expression $script
 
 压力测试会真实调用 AI Provider，应在测试环境或管理员模式下谨慎运行。
 
-2026-06-07 实测结果：20/20 组跨行业匿名化真实场景样本通过新 Schema 校验，模型能够同时输出 `expression_gap` 与 `capability_gap`。
+2026-06-07 实测结果：两轮共 40 次跨行业匿名化真实场景测试均通过新 Schema 校验。第二轮 20/20 样本全部返回 `requirement_id`、`risk_id`，同时保持 `expression_gap` 与 `capability_gap` 分类能力。
 
 ## 部署
 
