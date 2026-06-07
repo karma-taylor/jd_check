@@ -1,6 +1,6 @@
 # ResuMatch / 简历全检官
 
-v2.3 简历与 JD 匹配评分版：用户上传简历文件并粘贴目标 JD，系统只做匹配度评分、A/B/C 投递分档、风险诊断、面试追问预测和朴实打招呼语生成，不提供简历改写或包装建议。
+v2.4 白盒匹配分析版：用户上传简历文件并粘贴目标 JD，系统提供匹配度评分、A/B/C 投递分档、亮点证据溯源、风险回应准备、匹配提升路径和朴实打招呼语，不提供虚假经历包装。
 
 ## 功能
 
@@ -11,6 +11,10 @@ v2.3 简历与 JD 匹配评分版：用户上传简历文件并粘贴目标 JD�
 - 用户可配置本地求职画像，用于判断 JD 属于 A 类、B 类还是 C 类。
 - Worker 执行 CORS、IP 频控、Turnstile 校验入口和 AI Secret 注入。
 - AI 返回 JSON 时渲染投递等级、匹配分、总评、硬伤、匹配优势、能力缺口、投递风险和面试追问点。
+- 匹配亮点支持展开查看简历证据、对应 JD 要求、证据强度和强化方向。
+- 风险项支持手风琴展开，提供风险依据、可迁移能力、诚实回应思路和需要准备的真实证据。
+- 匹配提升路径只提示可补充的真实证据，不承诺虚假的精确提分结果。
+- 支持导出求职准备清单，承接用户后续面试和材料准备动作。
 - 报告生成后可单独点击“生成打招呼语”，一次返回 3 条朴实、直接、真诚、简洁的 HR 私信开场白。
 
 ## 已上线地址
@@ -31,12 +35,33 @@ v2.3 简历与 JD 匹配评分版：用户上传简历文件并粘贴目标 JD�
   "match_score": 0,
   "summary": "总体匹配结论",
   "hard_flaws": [],
-  "matched_points": [],
-  "missing_points": [],
-  "risk_points": [],
+  "matched_points": [
+    {
+      "point": "匹配结论",
+      "resume_evidence": "简历真实证据",
+      "jd_requirement": "对应 JD 要求",
+      "evidence_strength": "strong|medium|weak",
+      "evidence_gap": "需要补充的真实信息"
+    }
+  ],
+  "risk_points": [
+    {
+      "risk": "风险",
+      "risk_type": "expression_gap|capability_gap|preference_conflict",
+      "reason": "判断依据",
+      "resume_evidence": "相关简历证据",
+      "transferable_evidence": "可迁移能力",
+      "interview_response": "诚实回应思路",
+      "evidence_to_prepare": "需要准备的真实证据",
+      "risk_level": 1
+    }
+  ],
+  "improvement_path": [],
   "interview_focus": []
 }
 ```
+
+`expression_gap` 仅允许用于“简历已有相邻或部分证据，但缺少范围、数字、结果或职责边界”的情况。简历完全没有支撑证据时，必须返回 `capability_gap`。
 
 ## 用户画像
 
@@ -86,6 +111,27 @@ Worker 返回：
 ```
 
 打招呼语生成属于一次 AI 调用，受现有单 IP 每日次数、全站每日预算和管理员绕过规则控制。
+
+## Schema 压力测试
+
+`tests/schema-pressure.mjs` 包含 20 组跨行业匿名化真实场景样本，用于检查新 Schema 是否稳定，以及模型能否区分信息表达不足和真实能力缺口。
+
+```bash
+set ADMIN_BYPASS_TOKEN=your_admin_token
+node tests/schema-pressure.mjs
+```
+
+Windows PowerShell 5 如遇中文脚本编码问题，可执行：
+
+```powershell
+$env:ADMIN_BYPASS_TOKEN = "your_admin_token"
+$script = Get-Content -Raw -Encoding utf8 .\tests\schema-pressure.ps1
+Invoke-Expression $script
+```
+
+压力测试会真实调用 AI Provider，应在测试环境或管理员模式下谨慎运行。
+
+2026-06-07 实测结果：20/20 组跨行业匿名化真实场景样本通过新 Schema 校验，模型能够同时输出 `expression_gap` 与 `capability_gap`。
 
 ## 部署
 

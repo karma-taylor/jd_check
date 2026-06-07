@@ -300,18 +300,36 @@
               <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Resume Highlights</p>
               <h2 class="mt-2 text-2xl font-bold text-slate-800">你的简历亮点</h2>
               <div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-                <highlight-card v-for="(item, index) in matchedPoints" :key="item" icon="✓" :title="`匹配亮点 ${String(index + 1).padStart(2, '0')}`" :description="item" :tags="[]" tone="good"></highlight-card>
+                <evidence-card v-for="(item, index) in matchedPointDetails" :key="`${index}-${item.point}`" :index="index + 1" :item="item"></evidence-card>
               </div>
             </section>
 
             <section>
               <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Risk Assessment</p>
               <h2 class="mt-2 text-2xl font-bold text-slate-800">可能被卡的地方</h2>
+              <p class="mt-2 text-xs leading-5 text-slate-500">点击风险项，查看判断依据、可迁移能力、诚实回应思路和需要准备的证据。</p>
               <div class="mt-6 space-y-4">
-                <risk-indicator v-for="item in missingPoints" :key="item" :description="item" :risk-level="2"></risk-indicator>
-                <risk-indicator v-for="item in riskPoints" :key="item" :description="item" :risk-level="3"></risk-indicator>
-                <p v-if="!missingPoints.length && !riskPoints.length" class="text-sm text-slate-400">暂未识别到明显风险。</p>
+                <risk-accordion v-for="(item, index) in riskDetails" :key="`${index}-${item.risk}`" :item="item"></risk-accordion>
+                <p v-if="!riskDetails.length" class="text-sm text-slate-400">暂未识别到明显风险。</p>
               </div>
+            </section>
+
+            <section class="rounded-lg bg-[#f5f3ef] p-6">
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Improvement Path</p>
+              <h2 class="mt-2 text-2xl font-bold text-slate-800">匹配提升路径</h2>
+              <p class="mt-2 text-xs leading-5 text-slate-500">优先处理影响匹配度的真实证据问题，再重新检测。</p>
+              <div class="mt-6 space-y-3">
+                <article v-for="(item, index) in improvementPath" :key="`${index}-${item.action}`" class="flex items-start gap-4 rounded-lg bg-white/70 p-5">
+                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">{{ index + 1 }}</span>
+                  <div>
+                    <p class="text-sm font-semibold leading-6 text-slate-700">{{ item.action }}</p>
+                    <p v-if="item.impact_area" class="mt-1 text-xs leading-5 text-slate-500">影响方向：{{ item.impact_area }}</p>
+                    <evidence-badge v-if="item.requires_real_evidence !== false" strength="real"></evidence-badge>
+                  </div>
+                </article>
+                <p v-if="!improvementPath.length" class="text-sm text-slate-400">当前没有需要优先补充的证据项。</p>
+              </div>
+              <p class="mt-6 text-xs italic leading-6 text-slate-500">补充真实证据后，系统可重新评估匹配度。最终表现取决于您补充的真实经历，不承诺固定提分结果。</p>
             </section>
 
             <section class="rounded-lg bg-[#f7f9fc] p-6">
@@ -354,6 +372,13 @@
               <div class="mt-6 space-y-3">
                 <interview-node v-for="(item, index) in interviewFocus" :key="item" :index="index + 1" :description="item"></interview-node>
               </div>
+            </section>
+
+            <section class="pb-8 text-center">
+              <button @click="exportPreparationChecklist" class="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-blue-600 px-6 text-sm font-bold text-white shadow-[0_12px_30px_rgba(37,99,235,0.22)] transition hover:bg-blue-700 active:scale-[0.99] sm:w-auto">
+                导出求职准备清单
+              </button>
+              <p class="mt-3 text-[11px] text-slate-400">仅导出风险依据、真实证据准备项和面试回应思路，不生成虚假经历。</p>
             </section>
           </div>
         </section>
@@ -461,6 +486,124 @@
         `
       };
 
+      const EvidenceBadge = {
+        props: ["strength"],
+        computed: {
+          config() {
+            return {
+              strong: { label: "证据强", classes: "bg-emerald-100 text-emerald-700" },
+              medium: { label: "证据中等", classes: "bg-amber-100 text-amber-700" },
+              weak: { label: "证据较弱", classes: "bg-rose-100 text-rose-700" },
+              real: { label: "需真实证据", classes: "bg-blue-100 text-blue-700" }
+            }[String(this.strength || "").toLowerCase()] || { label: "待确认", classes: "bg-slate-100 text-slate-600" };
+          }
+        },
+        template: `<span :class="config.classes" class="mt-3 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold">{{ config.label }}</span>`
+      };
+
+      const EvidenceCard = {
+        components: { EvidenceBadge },
+        props: ["item", "index"],
+        data() {
+          return { open: false };
+        },
+        template: `
+          <article class="rounded-lg bg-emerald-50/50 transition duration-200 hover:shadow-[0_12px_36px_rgba(15,23,42,0.06)]">
+            <button @click="open = !open" :aria-expanded="open" class="flex min-h-11 w-full items-start gap-4 p-6 text-left">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-sm font-bold text-emerald-700">✓</span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-[10px] font-semibold uppercase tracking-widest text-emerald-600">匹配亮点 {{ String(index).padStart(2, "0") }}</span>
+                <span class="mt-2 block text-sm font-bold leading-6 text-slate-800">{{ item.point }}</span>
+                <evidence-badge :strength="item.evidence_strength"></evidence-badge>
+              </span>
+              <span class="mt-1 text-lg text-slate-400 transition duration-200" :class="open ? 'rotate-45' : ''">+</span>
+            </button>
+            <div class="grid overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out" :class="open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+              <div class="min-h-0">
+                <div class="mx-6 mb-6 space-y-4 rounded-lg bg-white/80 p-5">
+                  <div>
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">简历证据</p>
+                    <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.resume_evidence || "未返回明确证据，请人工核对。" }}</p>
+                  </div>
+                  <div>
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">对应 JD 要求</p>
+                    <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.jd_requirement || "未返回明确对应项。" }}</p>
+                  </div>
+                  <div v-if="item.evidence_gap">
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">强化方向</p>
+                    <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.evidence_gap }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        `
+      };
+
+      const RiskAccordion = {
+        props: ["item"],
+        data() {
+          return { open: false };
+        },
+        computed: {
+          level() {
+            return Math.max(1, Math.min(3, Number(this.item?.risk_level) || 2));
+          },
+          activeClass() {
+            return ["bg-emerald-500", "bg-amber-500", "bg-rose-500"][this.level - 1];
+          },
+          typeLabel() {
+            return {
+              expression_gap: "信息表达不足",
+              capability_gap: "真实能力缺口",
+              preference_conflict: "偏好冲突"
+            }[this.item?.risk_type] || "待核实风险";
+          }
+        },
+        template: `
+          <article class="rounded-lg bg-slate-50">
+            <button @click="open = !open" :aria-expanded="open" class="flex min-h-11 w-full items-center gap-4 p-5 text-left">
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-semibold leading-6 text-slate-700">{{ item.risk }}</span>
+                <span class="mt-2 inline-flex rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-500">{{ typeLabel }}</span>
+              </span>
+              <span class="shrink-0">
+                <span class="flex gap-1.5">
+                  <span v-for="index in 3" :key="index" :class="index <= level ? activeClass : 'bg-slate-200'" class="h-2.5 w-6 rounded-sm"></span>
+                </span>
+                <span class="mt-3 block text-right text-lg text-slate-400 transition duration-200" :class="open ? 'rotate-45' : ''">+</span>
+              </span>
+            </button>
+            <div class="grid overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out" :class="open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+              <div class="min-h-0">
+                <div class="mx-5 mb-5 grid grid-cols-1 gap-4 rounded-lg bg-white p-5 md:grid-cols-2">
+                  <div>
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">风险依据</p>
+                    <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.reason || "暂无详细依据。" }}</p>
+                  </div>
+                  <div>
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">相关简历证据</p>
+                    <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.resume_evidence || "简历中未找到直接证据。" }}</p>
+                  </div>
+                  <div>
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">可迁移能力</p>
+                    <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.transferable_evidence || "暂无可确认的可迁移证据。" }}</p>
+                  </div>
+                  <div>
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">面试回应思路</p>
+                    <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.interview_response || "诚实说明经验边界，并准备相关真实案例。" }}</p>
+                  </div>
+                  <div class="md:col-span-2">
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">需要准备的真实证据</p>
+                    <p class="mt-2 text-xs leading-6 text-slate-600">{{ item.evidence_to_prepare || "根据实际经历准备可核验案例。" }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        `
+      };
+
       const RiskIndicator = {
         props: ["riskLevel", "description"],
         computed: {
@@ -500,7 +643,7 @@
       };
 
       Vue.createApp({
-        components: { ReportList, HighlightCard, RiskIndicator, InterviewNode },
+        components: { ReportList, HighlightCard, EvidenceBadge, EvidenceCard, RiskIndicator, RiskAccordion, InterviewNode },
         data() {
           return {
             viewState: "input",
@@ -557,13 +700,82 @@
             return "border-rose-100 bg-rose-50 text-rose-700";
           },
           matchedPoints() {
-            return this.arrayItems(this.report?.matched_points || this.report?.strengths);
+            return this.matchedPointDetails.map((item) => item.point);
+          },
+          matchedPointDetails() {
+            return this.arrayItems(this.report?.matched_points || this.report?.strengths).map((item) => {
+              if (item && typeof item === "object") {
+                return {
+                  point: String(item.point || "未命名匹配点"),
+                  resume_evidence: String(item.resume_evidence || ""),
+                  jd_requirement: String(item.jd_requirement || ""),
+                  evidence_strength: String(item.evidence_strength || "medium"),
+                  evidence_gap: String(item.evidence_gap || "")
+                };
+              }
+              return {
+                point: String(item),
+                resume_evidence: "",
+                jd_requirement: "",
+                evidence_strength: "medium",
+                evidence_gap: ""
+              };
+            });
           },
           missingPoints() {
             return this.arrayItems(this.report?.missing_points || this.report?.weaknesses);
           },
           riskPoints() {
-            return this.arrayItems(this.report?.risk_points || this.report?.hard_flaws);
+            return this.riskDetails.map((item) => item.risk);
+          },
+          riskDetails() {
+            const source = this.arrayItems(this.report?.risk_points || this.report?.missing_points || this.report?.hard_flaws);
+            return source.map((item) => {
+              if (item && typeof item === "object") {
+                return {
+                  risk: String(item.risk || "未命名风险"),
+                  risk_type: String(item.risk_type || "capability_gap"),
+                  reason: String(item.reason || ""),
+                  resume_evidence: String(item.resume_evidence || ""),
+                  transferable_evidence: String(item.transferable_evidence || ""),
+                  interview_response: String(item.interview_response || ""),
+                  evidence_to_prepare: String(item.evidence_to_prepare || ""),
+                  risk_level: Number(item.risk_level || 2)
+                };
+              }
+              return {
+                risk: String(item),
+                risk_type: "capability_gap",
+                reason: "",
+                resume_evidence: "",
+                transferable_evidence: "",
+                interview_response: "",
+                evidence_to_prepare: "",
+                risk_level: 2
+              };
+            });
+          },
+          improvementPath() {
+            const items = this.arrayItems(this.report?.improvement_path);
+            if (items.length) {
+              return items.map((item, index) => {
+                if (item && typeof item === "object") {
+                  return {
+                    priority: Number(item.priority || index + 1),
+                    action: String(item.action || ""),
+                    impact_area: String(item.impact_area || ""),
+                    requires_real_evidence: item.requires_real_evidence !== false
+                  };
+                }
+                return { priority: index + 1, action: String(item), impact_area: "", requires_real_evidence: true };
+              }).sort((a, b) => a.priority - b.priority).slice(0, 5);
+            }
+            return this.riskDetails.slice(0, 3).map((item, index) => ({
+              priority: index + 1,
+              action: item.evidence_to_prepare || `准备能够回应“${item.risk}”的真实案例或材料`,
+              impact_area: item.risk,
+              requires_real_evidence: true
+            }));
           },
           interviewFocus() {
             return this.arrayItems(this.report?.interview_focus);
@@ -839,6 +1051,47 @@
             } catch (error) {
               this.greetingError = "复制失败，请手动选中文字复制。";
             }
+          },
+          exportPreparationChecklist() {
+            const lines = [
+              "ResuMatch 求职准备清单",
+              "",
+              `投递等级：${this.report?.job_tier || "未分档"} 类 / ${this.report?.tier_label || this.tierLabelFallback}`,
+              `匹配分：${this.normalizedScore}`,
+              `总体结论：${this.report?.summary || ""}`,
+              "",
+              "一、匹配亮点与证据",
+              ...this.matchedPointDetails.flatMap((item, index) => [
+                `${index + 1}. ${item.point}`,
+                `   简历证据：${item.resume_evidence || "请人工核对"}`,
+                `   对应 JD：${item.jd_requirement || "请人工核对"}`,
+                `   强化方向：${item.evidence_gap || "暂无"}`
+              ]),
+              "",
+              "二、风险与回应准备",
+              ...this.riskDetails.flatMap((item, index) => [
+                `${index + 1}. ${item.risk}`,
+                `   风险类型：${item.risk_type}`,
+                `   判断依据：${item.reason || "暂无"}`,
+                `   可迁移能力：${item.transferable_evidence || "暂无"}`,
+                `   面试回应思路：${item.interview_response || "诚实说明经验边界"}`,
+                `   需准备证据：${item.evidence_to_prepare || "根据实际经历准备可核验案例"}`
+              ]),
+              "",
+              "三、匹配提升路径",
+              ...this.improvementPath.map((item, index) => `${index + 1}. ${item.action}${item.impact_area ? `（影响：${item.impact_area}）` : ""}`),
+              "",
+              "说明：补充真实证据后可重新评估匹配度，最终表现取决于真实经历，不承诺固定提分结果。"
+            ];
+            const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `ResuMatch_求职准备清单_${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
           },
           buildRequestHeaders() {
             const headers = { "Content-Type": "application/json" };
