@@ -207,7 +207,22 @@ function getAllowedOrigins(env) {
 }
 
 function isAllowedOrigin(origin, env) {
-  return getAllowedOrigins(env).includes(origin);
+  return getAllowedOrigins(env).some((allowedOrigin) => {
+    if (allowedOrigin === origin) return true;
+    return isSamePagesProjectPreview(origin, allowedOrigin);
+  });
+}
+
+function isSamePagesProjectPreview(origin, allowedOrigin) {
+  try {
+    const incoming = new URL(origin);
+    const allowed = new URL(allowedOrigin);
+    if (incoming.protocol !== "https:" || allowed.protocol !== "https:") return false;
+    if (!allowed.hostname.endsWith(".pages.dev")) return false;
+    return incoming.hostname.endsWith(`.${allowed.hostname}`);
+  } catch (error) {
+    return false;
+  }
 }
 
 function buildCorsHeaders(origin, env) {
